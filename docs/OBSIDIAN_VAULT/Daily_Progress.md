@@ -143,3 +143,30 @@ Revisión manual (no automatizada) de las secciones 7 (Marcas de baterías) y 13
   = EN_RECUPERACION** (por falta total de fotos), pendiente de que el equipo lo
   confirme y lo capture manualmente en la plataforma — no se modificó nada en
   `revisar.php?id=70112`.
+
+---
+
+## 2026-09-04 (continuación) — Marcas/fotos/veredicto ahora en el Excel automatizado
+
+El usuario pidió que la revisión manual anterior (marcas, fotos, veredicto de
+calidad) se automatizara y se sumara al mismo Excel de GPS, en vez de quedar
+solo en una nota aparte. Se implementó:
+
+- `browser_automation.CensoBateriasClient.extract_case_data` ahora también lee,
+  en la misma visita a la página de detalle: Sección 5 (Estatus del negocio,
+  `<p>` tras el `<h2>`), Sección 7 (marcas registradas, filas `<td>` de la tabla
+  bajo `<h2>7. Marcas de baterías</h2>`) y Sección 13 (fotos faltantes, vía
+  `.foto-card[data-campo=...]` — tiene foto si contiene `<img>`, falta si
+  contiene `.foto-vacia`).
+- `validators.suggest_quality_verdict(gps_status, business_status,
+  missing_photos, total_photo_fields) -> (calidad, tipo_encuesta)`: función pura
+  que sugiere el veredicto (nunca lo aplica en la plataforma). Reglas en
+  `docs/FLUJO_TRABAJO.md`.
+- `excel_generator.py`: 5 columnas nuevas — Estatus Negocio, Marcas Registradas,
+  Fotos Faltantes, Calidad Sugerida, Tipo Encuesta Sugerido.
+- Verificado en vivo contra Case ID 1777: el Excel generado coincide
+  exactamente con la revisión manual de antes (4 marcas, 6/6 fotos faltantes,
+  Calidad Sugerida = Tipo Encuesta Sugerido = EN_RECUPERACION).
+- Suite de tests ampliada a 33 (7 tests nuevos para `suggest_quality_verdict`).
+- Recordatorio: sigue sin escribirse nada en la plataforma; el equipo captura
+  el veredicto manualmente si está de acuerdo con la sugerencia.

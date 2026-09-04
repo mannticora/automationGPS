@@ -142,6 +142,17 @@ Resultados reales de una corrida contra la plataforma (2026-09-04):
 | 1778 | Acumuladores Rodriguez | 19.3194452, -99.0795619 | 19.319486, -99.0794311 | Validado ✓ | 14.5 | Sin coincidencia exacta de nombre; resultado más cercano |
 | 1779 | *(sin nombre en la plataforma)* | 19.3587083, -99.1132417 | | ❌ No encontrado | | Google Maps no encontró resultados |
 
+El Excel también incluye columnas de control de calidad, extraídas de las
+Secciones 5, 7 y 13 de la plataforma:
+
+| Case ID | Estatus Negocio | Marcas Registradas | Fotos Faltantes | Calidad Sugerida | Tipo Encuesta Sugerido |
+|---------|-----------------|---------------------|------------------|-------------------|------------------------|
+| 1777 | Operando | FULL POWER, GONHER, GONHER PRIME, LTH | Todas (6/6) | EN_RECUPERACION | EN_RECUPERACION |
+
+"Calidad Sugerida" y "Tipo Encuesta Sugerido" son solo una **recomendación**
+(ver [docs/FLUJO_TRABAJO.md](docs/FLUJO_TRABAJO.md#marcas-fotos-y-veredicto-de-calidad-sugerido))
+— el equipo decide y los captura manualmente en la plataforma.
+
 `GPS Corregido` se reporta siempre que Google Maps encuentre el negocio, incluso
 en casos `Validado ✓` — el equipo la usa para actualizar manualmente el campo
 "GPS correcto (lat, lon)" de la plataforma. La automatización nunca escribe en la

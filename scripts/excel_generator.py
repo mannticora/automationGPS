@@ -17,6 +17,11 @@ HEADERS = [
     "Distancia Error (m)",
     "Enlace Google Maps",
     "Notas",
+    "Estatus Negocio",
+    "Marcas Registradas",
+    "Fotos Faltantes",
+    "Calidad Sugerida",
+    "Tipo Encuesta Sugerido",
 ]
 
 _HEADER_FILL = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
@@ -33,6 +38,18 @@ def _fill_for_status(status: str) -> PatternFill:
     if "corrección" in status:
         return _FILL_CORRECCION
     return _FILL_ERROR
+
+
+def _format_missing_photos(missing_photos: list | None, total_photo_fields: int) -> str:
+    """Formatea la lista de fotos faltantes para la columna del Excel."""
+    if not total_photo_fields:
+        return ""
+    missing_photos = missing_photos or []
+    if not missing_photos:
+        return "Ninguna ✓"
+    if len(missing_photos) == total_photo_fields:
+        return f"Todas ({total_photo_fields}/{total_photo_fields})"
+    return f"{', '.join(missing_photos)} ({len(missing_photos)}/{total_photo_fields})"
 
 
 def generate_excel_report(cases: list[dict], output_filename: str | None = None) -> str:
@@ -65,6 +82,11 @@ def generate_excel_report(cases: list[dict], output_filename: str | None = None)
             case.get("distance_error", ""),
             f'=HYPERLINK("{maps_link}", "Ver en Maps")' if maps_link else "",
             case.get("notes", ""),
+            case.get("business_status", ""),
+            ", ".join(case.get("brands", [])) or "",
+            _format_missing_photos(case.get("missing_photos"), case.get("total_photo_fields", 0)),
+            case.get("calidad_sugerida", ""),
+            case.get("tipo_encuesta_sugerido", ""),
         ])
 
     for row_idx in range(2, worksheet.max_row + 1):

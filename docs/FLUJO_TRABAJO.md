@@ -61,6 +61,12 @@ Todo el pipeline gira alrededor de un `dict` por caso, que se va enriqueciendo:
     "status": "Validado ✓",
     "maps_link": "https://www.google.com/maps/place/...",
     "notes": "Coincide con 'AUTO SERVICIO CALVA' en Google Maps.",
+    "business_status": "Operando (...)",          # Sección 5 (ESTNEG), texto tal cual
+    "brands": ["FULL POWER", "GONHER", "GONHER PRIME", "LTH"], # Sección 7
+    "missing_photos": ["Fachada", "Interior", ...],            # Sección 13, etiquetas sin foto
+    "total_photo_fields": 6,
+    "calidad_sugerida": "EN_RECUPERACION",        # ver suggest_quality_verdict
+    "tipo_encuesta_sugerido": "EN_RECUPERACION",
 }
 ```
 
@@ -69,6 +75,24 @@ importar el `status`) — el equipo lo copia manualmente al campo "GPS correcto
 (lat, lon)" de la plataforma como parte de su propio control de calidad, incluso
 en casos ya `Validado ✓`. Solo queda en `None` cuando no se encontró el negocio en
 Maps, o cuando la diferencia con `gps_actual` es menor a 1 metro (el mismo punto).
+
+### Marcas, fotos y veredicto de calidad sugerido
+
+Además de la validación GPS, `extract_case_data` también lee la Sección 5
+(Estatus del negocio), la Sección 7 (Marcas de baterías registradas) y la
+Sección 13 (qué fotos faltan, de las 6 requeridas: Fachada, Interior, Exhibidor,
+Exhibidor 2, Negocio, Material POP). `validators.suggest_quality_verdict`
+combina esas señales con el resultado de GPS para **sugerir** una Calidad
+(`APROBADA` / `EN_RECUPERACION` / `CANCELADA`) y un Tipo de encuesta a capturar
+en la plataforma — nunca los aplica: son solo una recomendación para que un
+humano decida y los capture manualmente en `revisar.php`. Reglas, en orden:
+
+1. Negocio "Cerrado definitivo" o "No aparece" → `CANCELADA` / `NEGADA`.
+2. Error al extraer o validar el caso → `EN_RECUPERACION` / `INCIDENCIA`.
+3. Ninguna foto cargada (0/6) → `EN_RECUPERACION` / `EN_RECUPERACION`.
+4. Faltan algunas fotos, o el negocio no se encontró en Maps →
+   `EN_RECUPERACION` / `INCIDENCIA`.
+5. En cualquier otro caso → `APROBADA` / `COMPLETA`.
 
 ---
 

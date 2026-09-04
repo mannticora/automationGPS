@@ -9,6 +9,7 @@ from validators import (
     haversine_distance_m,
     is_within_valid_range,
     parse_coordinates,
+    suggest_quality_verdict,
     validate_case,
 )
 
@@ -90,11 +91,73 @@ class TestBuildCaseStatus:
         assert build_case_status(found=True, distance_m=None) == "Validado ✓"
 
 
+class TestSuggestQualityVerdict:
+    def test_closed_business_is_cancelada(self):
+        calidad, tipo = suggest_quality_verdict(
+            gps_status="Validado ✓",
+            business_status="Cerrado definitivo (Negocio que aparece en el listado/mapa, pero ya cerró)",
+            missing_photos=[],
+            total_photo_fields=6,
+        )
+        assert (calidad, tipo) == ("CANCELADA", "NEGADA")
+
+    def test_business_not_present_is_cancelada(self):
+        calidad, _ = suggest_quality_verdict(
+            gps_status="Validado ✓", business_status="No aparece (Negocio que no está físicamente)",
+            missing_photos=[], total_photo_fields=6,
+        )
+        assert calidad == "CANCELADA"
+
+    def test_extraction_error_is_en_recuperacion(self):
+        calidad, tipo = suggest_quality_verdict(
+            gps_status="❌ Error", business_status="", missing_photos=[], total_photo_fields=0,
+        )
+        assert (calidad, tipo) == ("EN_RECUPERACION", "INCIDENCIA")
+
+    def test_all_photos_missing_is_en_recuperacion(self):
+        """Caso real Case ID 1777: las 6 fotos requeridas están vacías."""
+        calidad, tipo = suggest_quality_verdict(
+            gps_status="Validado ✓", business_status="Operando (...)",
+            missing_photos=["Fachada", "Interior", "Exhibidor", "Exhibidor 2", "Negocio", "Material POP"],
+            total_photo_fields=6,
+        )
+        assert (calidad, tipo) == ("EN_RECUPERACION", "EN_RECUPERACION")
+
+    def test_some_photos_missing_is_en_recuperacion_incidencia(self):
+        calidad, tipo = suggest_quality_verdict(
+            gps_status="Validado ✓", business_status="Operando (...)",
+            missing_photos=["Interior"], total_photo_fields=6,
+        )
+        assert (calidad, tipo) == ("EN_RECUPERACION", "INCIDENCIA")
+
+    def test_not_found_in_maps_is_en_recuperacion(self):
+        calidad, tipo = suggest_quality_verdict(
+            gps_status="❌ No encontrado", business_status="Operando (...)",
+            missing_photos=[], total_photo_fields=6,
+        )
+        assert (calidad, tipo) == ("EN_RECUPERACION", "INCIDENCIA")
+
+    def test_all_good_is_aprobada(self):
+        calidad, tipo = suggest_quality_verdict(
+            gps_status="Validado ✓", business_status="Operando (...)",
+            missing_photos=[], total_photo_fields=6,
+        )
+        assert (calidad, tipo) == ("APROBADA", "COMPLETA")
+
+
 class _FakeClient:
     """Doble de prueba para browser_automation.CensoBateriasClient."""
 
-    def __init__(self, business_name: str, geo_location_raw: str):
-        self._data = {"business_name": business_name, "geo_location_raw": geo_location_raw}
+    def __init__(self, business_name: str, geo_location_raw: str, business_status: str = "Operando (...)",
+                 brands: list | None = None, missing_photos: list | None = None, total_photo_fields: int = 6):
+        self._data = {
+            "business_name": business_name,
+            "geo_location_raw": geo_location_raw,
+            "business_status": business_status,
+            "brands": brands or [],
+            "missing_photos": missing_photos if missing_photos is not None else [],
+            "total_photo_fields": total_photo_fields,
+        }
 
     def extract_case_data(self, case_id, url=None):
         return self._data
@@ -126,7 +189,11 @@ class TestValidateCase:
         plataforma como parte de su control de calidad, sin importar si ya estaba
         dentro de tolerancia.
         """
-        client = _FakeClient("AUTOSERVICIO CALVA", "19.3200134,-99.0798081")
+        client = _FakeClient(
+            "AUTOSERVICIO CALVA", "19.3200134,-99.0798081",
+            brands=["FULL POWER", "GONHER", "GONHER PRIME", "LTH"],
+            missing_photos=["Fachada", "Interior", "Exhibidor", "Exhibidor 2", "Negocio", "Material POP"],
+        )
         maps_handler = _FakeMapsHandler({
             "found": True,
             "gps_corregido": (19.3200715, -99.0797028),
@@ -138,6 +205,10 @@ class TestValidateCase:
         assert result["status"] == "Validado ✓"
         assert result["gps_corregido"] == (19.3200715, -99.0797028)
         assert result["distance_error"] == 12.8
+        assert result["brands"] == ["FULL POWER", "GONHER", "GONHER PRIME", "LTH"]
+        # Sin fotos -> aunque el GPS esté validado, se sugiere EN_RECUPERACION (falta evidencia).
+        assert result["calidad_sugerida"] == "EN_RECUPERACION"
+        assert result["tipo_encuesta_sugerido"] == "EN_RECUPERACION"
 
     def test_requires_correction_keeps_gps_corregido(self):
         client = _FakeClient("NEGOCIO X", "0.0,0.0")

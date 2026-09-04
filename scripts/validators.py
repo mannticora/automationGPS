@@ -59,6 +59,42 @@ def build_case_status(found: bool, distance_m: float | None, tolerance_m: float 
     return "⚠️ Requiere corrección"
 
 
+_CLOSED_BUSINESS_MARKERS = ("cerrado definitivo", "no aparece")
+
+
+def suggest_quality_verdict(gps_status: str, business_status: str, missing_photos: list[str],
+                             total_photo_fields: int) -> tuple[str, str]:
+    """Sugiere `(calidad, tipo_encuesta)` para que un humano revise y capture manualmente.
+
+    Es solo una RECOMENDACIÓN a partir de señales objetivas ya extraídas de la plataforma
+    (estatus del negocio, resultado de GPS, fotos faltantes) — nunca se aplica sola en
+    `revisar.php`. Reglas, en orden de prioridad:
+
+    1. Negocio cerrado/inexistente (ESTNEG contiene "Cerrado definitivo" o "No aparece")
+       -> `CANCELADA` / `NEGADA`.
+    2. Error al extraer o validar el caso -> `EN_RECUPERACION` / `INCIDENCIA`.
+    3. Ninguna de las fotos requeridas fue cargada -> `EN_RECUPERACION` / `EN_RECUPERACION`
+       (falta toda evidencia visual).
+    4. Faltan algunas fotos, o el negocio no se encontró en Google Maps ->
+       `EN_RECUPERACION` / `INCIDENCIA`.
+    5. En cualquier otro caso -> `APROBADA` / `COMPLETA`.
+    """
+    business_status_norm = (business_status or "").strip().casefold()
+    if any(marker in business_status_norm for marker in _CLOSED_BUSINESS_MARKERS):
+        return "CANCELADA", "NEGADA"
+
+    if gps_status == "❌ Error":
+        return "EN_RECUPERACION", "INCIDENCIA"
+
+    if total_photo_fields and len(missing_photos) == total_photo_fields:
+        return "EN_RECUPERACION", "EN_RECUPERACION"
+
+    if missing_photos or gps_status == "❌ No encontrado":
+        return "EN_RECUPERACION", "INCIDENCIA"
+
+    return "APROBADA", "COMPLETA"
+
+
 def validate_case(client, maps_handler, case: dict, tolerance_m: float = 50.0) -> dict:
     """Orquesta la validación completa de un caso: extrae datos de la plataforma y
     los contrasta contra Google Maps. Modifica y devuelve `case` con los resultados.
@@ -74,6 +110,10 @@ def validate_case(client, maps_handler, case: dict, tolerance_m: float = 50.0) -
         data = client.extract_case_data(case["case_id"], case.get("url"))
         case["business_name"] = data["business_name"]
         case["gps_actual"] = parse_coordinates(data["geo_location_raw"])
+        case["business_status"] = data.get("business_status", "")
+        case["brands"] = data.get("brands", [])
+        case["missing_photos"] = data.get("missing_photos", [])
+        case["total_photo_fields"] = data.get("total_photo_fields", 0)
     except Exception as exc:  # noqa: BLE001 - se registra y se continúa con el siguiente caso
         logger.error(f"Error extrayendo datos del Case ID {case.get('case_id')}: {exc}")
         case["status"] = "❌ Error"
@@ -103,5 +143,12 @@ def validate_case(client, maps_handler, case: dict, tolerance_m: float = 50.0) -
     # google_maps_handler ya la omite si la diferencia es < 1m (prácticamente el mismo punto).
     case["gps_corregido"] = result.get("gps_corregido")
 
-    logger.info(f"Case ID {case.get('case_id')} -> {case['status']}")
+    case["calidad_sugerida"], case["tipo_encuesta_sugerido"] = suggest_quality_verdict(
+        gps_status=case["status"],
+        business_status=case.get("business_status", ""),
+        missing_photos=case.get("missing_photos", []),
+        total_photo_fields=case.get("total_photo_fields", 0),
+    )
+
+    logger.info(f"Case ID {case.get('case_id')} -> {case['status']} | Calidad sugerida: {case['calidad_sugerida']}")
     return case
