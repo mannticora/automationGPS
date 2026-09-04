@@ -34,13 +34,65 @@
   `docs/TROUBLESHOOTING.md`, y publicar el proyecto (código + documentación) en
   GitHub para compartirlo con el equipo mientras se resuelve el acceso.
 
+**Próximos pasos (completados más tarde el mismo día, ver entrada siguiente):**
+1. ~~Conseguir credenciales válidas para el usuario de automatización.~~
+2. ~~Correr `python scripts/main.py --mode=test --case-id=1777 --headless=false`
+   y confirmar visualmente el login.~~
+3. ~~Ajustar los selectores de listado/detalle en `browser_automation.py` según el
+   DOM real si no coinciden con lo documentado.~~
+4. ~~Reemplazar la fixture de ejemplo por los datos reales del Case ID 1777 una vez
+   verificados.~~
+5. ~~Correr una validación completa (`--mode=validate --limit=10`) y revisar el
+   Excel generado.~~
+
+---
+
+## 2026-09-04 (continuación) — Login resuelto, verificación en vivo completa
+
+**Hecho:**
+- Confirmado el email correcto: `ai.automation01@inmega.com` (visible en el campo
+  AUDITOR del propio formulario de revisión una vez logueados). La contraseña fue
+  actualizada por el equipo de la plataforma.
+- Login verificado en vivo, tanto por navegador interactivo como por
+  `scripts/main.py` con Playwright.
+- **Case ID 1777 (Autoservicio calva) extraído y validado end-to-end:**
+  GPS actual `19.3200134,-99.0798081` → coincide con "AUTO SERVICIO CALVA" en
+  Google Maps a **~12.8 m** → `Validado ✓`. Fixture de test actualizada con estos
+  datos reales.
+- Corrida adicional de `--mode=validate --limit=3` contra 3 casos pendientes
+  reales (1777, 1778, 1779) — los tres con resultados sensatos, incluyendo el
+  caso límite de un negocio sin nombre capturado (1779 → `❌ No encontrado`,
+  correcto: no hay nombre que buscar).
+- **Dos bugs reales encontrados y corregidos** durante esta verificación (detalle
+  en `docs/TROUBLESHOOTING.md`):
+  1. `browser.new_page()` creaba un `BrowserContext` nuevo sin cookies de sesión
+     por cada página → el detalle de caso se abría deslogueado. Corregido
+     reutilizando un único `BrowserContext`.
+  2. La búsqueda `+near+lat,lon` en Google Maps no funciona (Google la trata como
+     texto literal) y su página de "no encontrado" igual contiene un patrón
+     `@lat,lon,zoom` en la URL — producía correcciones falsas a >20km de
+     distancia. Corregido usando `.../search/{negocio}/@{lat},{lon},16z` y
+     leyendo las coordenadas exactas del `href` de cada resultado
+     (`!3d{lat}!4d{lon}`), con selección del resultado por coincidencia de
+     nombre cuando es posible.
+  3. (Menor) `google_maps_handler.GoogleMapsHandler` no heredaba el override
+     `--headless` pasado a `main.py`; ahora se propaga correctamente.
+  4. (Menor) `excel_generator`/`validators`: la columna "GPS Corregido" se
+     rellenaba incluso en casos `Validado ✓`; ahora solo se muestra cuando el
+     caso realmente requiere corrección.
+- Instalado Playwright + Chromium en el entorno de desarrollo (el pin
+  `playwright==1.47.0` no tenía wheel para Python 3.13 en Windows; se relajó a
+  `playwright>=1.47.0` en `requirements.txt`).
+- Suite de tests ampliada a 26 tests (se agregó cobertura de
+  `validators.validate_case` con dobles de prueba) — todos en verde.
+- Documentación (README, FLUJO_TRABAJO, TROUBLESHOOTING, Project_Overview) y
+  código actualizados y subidos a GitHub.
+
 **Próximos pasos:**
-1. Conseguir credenciales válidas para el usuario de automatización.
-2. Correr `python scripts/main.py --mode=test --case-id=1777 --headless=false`
-   y confirmar visualmente el login.
-3. Ajustar los selectores de listado/detalle en `browser_automation.py` según el
-   DOM real si no coinciden con lo documentado.
-4. Reemplazar la fixture de ejemplo por los datos reales del Case ID 1777 una vez
-   verificados.
-5. Correr una validación completa (`--mode=validate --limit=10`) y revisar el
-   Excel generado.
+1. Ejecutar una validación completa sin `--limit` (los 6 casos pendientes reales)
+   y revisar el Excel resultante con el equipo.
+2. Evaluar si vale la pena mejorar el matching de nombre en
+   `_pick_best_candidate` (p. ej. tolerancia a acentos/typos) dado el caso 1778,
+   donde el resultado más cercano no coincidió de nombre exacto.
+3. Fase 2: actualización automática del campo "GPS correcto" (`#gps_correcto`) en
+   la plataforma para los casos que requieran corrección.

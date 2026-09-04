@@ -1,6 +1,6 @@
 {
   "case_id": "1777",
-  "business_name": "AUTOSERVICIO CALVA",
-  "geo_location_raw": "-0.2345,-78.5123",
-  "_nota": "Datos de EJEMPLO para pruebas unitarias, no son coordenadas reales verificadas contra la plataforma. Extraer los datos reales con: python scripts/main.py --mode=test --case-id=1777 --headless=false"
+  "business_name": "Autoservicio calva",
+  "geo_location_raw": "19.3200134,-99.0798081",
+  "_nota": "Datos REALES extraídos de la plataforma el 2026-09-04 (revisar.php?id=70112). Validado contra Google Maps: coincide con 'AUTO SERVICIO CALVA' a ~12.8m -> Validado ✓."
 }

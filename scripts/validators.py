@@ -93,11 +93,13 @@ def validate_case(client, maps_handler, case: dict, tolerance_m: float = 50.0) -
         case["notes"] = str(exc)
         return case
 
-    case["gps_corregido"] = result.get("gps_corregido")
     case["distance_error"] = result.get("distance_m")
     case["maps_link"] = result.get("maps_link")
     case["status"] = build_case_status(result.get("found", False), result.get("distance_m"), tolerance_m)
     case["notes"] = result.get("notes", "")
+    # Solo mostramos "GPS corregido" cuando el caso realmente requiere corrección:
+    # si ya está Validado ✓ (dentro de tolerancia), no tiene sentido sugerir un cambio.
+    case["gps_corregido"] = result.get("gps_corregido") if case["status"] != "Validado ✓" else None
 
     logger.info(f"Case ID {case.get('case_id')} -> {case['status']}")
     return case

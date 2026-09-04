@@ -1,28 +1,29 @@
 # 🔧 TROUBLESHOOTING — Problemas Comunes
 
-## ⚠️ Estado actual (2026-09-04): Login rechazado por la plataforma
+## ✅ Resuelto (2026-09-04): bloqueo de login
 
-Durante el desarrollo inicial, **las credenciales disponibles para el usuario de
-automatización fueron rechazadas** por `https://censobaterias.pricepointmonitor.com/`
-con el mensaje `Correo o contraseña incorrectos.`, en dos combinaciones distintas
-probadas manualmente contra la página real.
+El bloqueo inicial de login (credenciales rechazadas) se resolvió tras actualizar
+la contraseña del usuario de automatización. Con `ai.automation01@inmega.com` y la
+contraseña vigente, el flujo completo fue verificado en vivo contra Case ID 1777
+(AUTOSERVICIO CALVA) y contra un lote de 3 casos pendientes reales:
+login → listado → extracción → validación en Google Maps → Excel. Ver el detalle
+en [docs/OBSIDIAN_VAULT/Daily_Progress.md](OBSIDIAN_VAULT/Daily_Progress.md).
 
-**Impacto:** no fue posible verificar en vivo los selectores del listado de casos
-pendientes ni del detalle de un caso (Sección 1 "Geo Location", Sección 10 "Datos
-del negocio"). El código en `scripts/browser_automation.py` implementa esos pasos
-usando los selectores descritos en la especificación original
-(`table tbody tr`, `[data-section='1']`, `[data-section='10']`), pero **no están
-verificados contra el DOM real** — sí lo está el formulario de login.
+Durante esa verificación se encontraron y corrigieron dos bugs reales (no
+hipotéticos) que vale la pena conocer si vuelves a tocar este código:
 
-**Antes de correr `--mode=validate` o `--mode=test` contra la plataforma real:**
-1. Confirmar con el equipo/administrador de la plataforma que el usuario de
-   automatización tiene credenciales válidas y permisos de lectura.
-2. Correr un test manual: `python scripts/main.py --mode=test --case-id=1777 --headless=false`
-   y observar visualmente si el login funciona.
-3. Si el login funciona pero la extracción de datos falla, inspeccionar el DOM real
-   del listado y del detalle de un caso (clic derecho → Inspeccionar) y ajustar los
-   selectores en `browser_automation.py::get_pending_cases`,
-   `browser_automation.py::find_case_by_id` y `browser_automation.py::extract_case_data`.
+1. **`browser.new_page()` no comparte sesión.** `Browser.new_page()` en Playwright
+   crea un `BrowserContext` nuevo (sin cookies) por cada llamada. El login se hacía
+   en un contexto y `extract_case_data` abría el detalle en otro, así que la
+   plataforma redirigía a `/login`. Solución: un único `BrowserContext` compartido
+   (`self.context`), con `self.context.new_page()` para cualquier página nueva.
+2. **Google Maps con `+near+lat,lon` no funciona.** Google trata "near" como texto
+   literal; cuando no encuentra nada, muestra una vista de mapa genérica que igual
+   contiene un patrón `@lat,lon,zoom` en la URL — leerlo a ciegas producía
+   "encontrados" falsos a decenas de km de distancia. Solución: usar
+   `.../search/{negocio}/@{lat},{lon},16z` (centra el mapa ahí) y leer las
+   coordenadas exactas embebidas en el `href` de cada resultado
+   (`a[href*="/maps/place/"]`, patrón `!3d{lat}!4d{lon}`), no en la URL de la página.
 
 ---
 
@@ -63,10 +64,22 @@ cp .env.example .env
 # Editar .env y completar CENSO_EMAIL / CENSO_PASSWORD
 ```
 
+## Error al instalar Playwright: `Microsoft Visual C++ 14.0 or greater is required` (greenlet)
+
+**Causa:** `playwright==1.47.0` (u otra versión antigua) no tiene wheel
+precompilado para tu versión de Python (p. ej. Python 3.13 en Windows) y `pip`
+intenta compilar `greenlet` desde código fuente.
+
+**Solución:** instalar sin fijar versión exacta (`pip install --upgrade playwright`,
+`requirements.txt` ya usa `playwright>=1.47.0`), o instalar
+[Microsoft C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)
+si necesitas una versión específica.
+
 ## Los selectores de listado/detalle no encuentran nada (`0 casos encontrados`)
 
-**Causa probable:** la plataforma cambió su HTML, o los selectores del prompt
-original no coinciden con el DOM real (ver aviso arriba).
+**Causa probable:** la plataforma cambió su HTML desde la última verificación
+(2026-09-04) — ver la nota de estado al inicio de este documento y los
+comentarios al inicio de `scripts/browser_automation.py`.
 
 **Solución:**
 1. Correr con `--headless=false --log-level=DEBUG` para observar el navegador.

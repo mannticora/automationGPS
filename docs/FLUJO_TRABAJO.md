@@ -71,8 +71,11 @@ Todo el pipeline gira alrededor de un `dict` por caso, que se va enriqueciendo:
 1. **API de Google Places** (`GOOGLE_MAPS_API_KEY` configurada en `.env`):
    más rápido y confiable, usa `Find Place From Text`.
 2. **Scraping con Playwright** (sin API key, por defecto): abre
-   `google.com/maps/search/{negocio}+near+{lat},{lon}` y lee las coordenadas
-   que Google embebe en la URL del resultado (`@lat,lon,zoom`).
+   `google.com/maps/search/{negocio}/@{lat},{lon},16z` (centra el mapa ahí y
+   busca el negocio) y lee las coordenadas exactas embebidas en el `href` de
+   cada resultado (`a[href*="/maps/place/"]`, patrón `!3d{lat}!4d{lon}`).
+   *No* usar `+near+{lat},{lon}`: Google lo trata como texto literal — ver
+   [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 
 ---
 
@@ -86,10 +89,12 @@ Todo el pipeline gira alrededor de un `dict` por caso, que se va enriqueciendo:
 
 ---
 
-## ⚠️ Selectores pendientes de verificación
+## ✅ Selectores verificados en vivo (2026-09-04)
 
-El login (`browser_automation.CensoBateriasClient.login`) está verificado contra
-el DOM real de la plataforma. El listado de casos y el detalle de un caso usan
-selectores tomados de la especificación original, **sin verificar en vivo**
-porque las credenciales disponibles durante el desarrollo fueron rechazadas. Ver
-[TROUBLESHOOTING.md](TROUBLESHOOTING.md) antes de correr contra producción.
+Todo el flujo (login, listado "Cola de revisión", detalle de un caso y búsqueda en
+Google Maps) fue verificado contra la plataforma real y contra Google Maps, usando
+Case ID 1777 (AUTOSERVICIO CALVA) y un lote de 3 casos pendientes reales. Detalles
+de los selectores exactos en los docstrings de `browser_automation.py` y
+`google_maps_handler.py`; dos bugs no obvios encontrados durante esa verificación
+(contexto de navegador no compartido, búsqueda "near" de Google Maps) están
+documentados en [TROUBLESHOOTING.md](TROUBLESHOOTING.md).

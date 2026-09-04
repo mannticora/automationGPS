@@ -111,9 +111,7 @@ estado de validación) y no requieren navegador ni credenciales.
 python scripts/main.py --mode=test --case-id=1777 --headless=false
 ```
 
-Si el login falla, revisar [docs/TROUBLESHOOTING.md](TROUBLESHOOTING.md) —
-actualmente hay un bloqueo conocido de credenciales, ver
-[docs/OBSIDIAN_VAULT/Daily_Progress.md](OBSIDIAN_VAULT/Daily_Progress.md).
+Si el login falla, revisar [docs/TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 
 ---
 

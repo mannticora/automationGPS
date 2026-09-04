@@ -4,13 +4,15 @@
 
 ## 📌 Estado del Proyecto
 
-**Fase:** MVP (código completo, pendiente de validación en vivo)
+**Fase:** MVP — verificado en vivo contra la plataforma real
 **Última actualización:** 2026-09-04
 
-⚠️ El login contra la plataforma real está actualmente bloqueado por un problema
-de credenciales — ver [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) y
-[docs/OBSIDIAN_VAULT/Daily_Progress.md](docs/OBSIDIAN_VAULT/Daily_Progress.md).
-El código está listo para correr en cuanto se resuelva el acceso.
+✅ Flujo completo (login → listado → validación GPS vs. Google Maps → Excel)
+probado contra Case ID 1777 (AUTOSERVICIO CALVA) y un lote de casos pendientes
+reales. Ver el detalle en
+[docs/OBSIDIAN_VAULT/Daily_Progress.md](docs/OBSIDIAN_VAULT/Daily_Progress.md) y
+los bugs encontrados/corregidos durante la verificación en
+[docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
 
 ---
 
@@ -132,10 +134,13 @@ vía `scripts/config.py`.
 
 ## 📊 Ejemplo de Output
 
-| Case ID | Negocio | GPS Actual | GPS Corregido | Estado | Enlace Maps | Notas |
-|---------|---------|-----------|---------------|--------|------------|-------|
-| 1777 | AUTOSERVICIO CALVA | -0.2345, -78.5123 | | ✅ Validado ✓ | [Link](#) | |
-| 1778 | GASOLINERA XYZ | -0.3456, -78.6234 | -0.3460, -78.6240 | ⚠️ Requiere corrección | [Link](#) | A 150m de distancia |
+Resultados reales de una corrida contra la plataforma (2026-09-04):
+
+| Case ID | Negocio | GPS Actual | GPS Corregido | Estado | Distancia (m) | Notas |
+|---------|---------|-----------|---------------|--------|--------------|-------|
+| 1777 | Autoservicio calva | 19.3200134, -99.0798081 | | Validado ✓ | 12.8 | Coincide con 'AUTO SERVICIO CALVA' en Google Maps |
+| 1778 | Acumuladores Rodriguez | 19.3194452, -99.0795619 | | Validado ✓ | 14.5 | Sin coincidencia exacta de nombre; resultado más cercano |
+| 1779 | *(sin nombre en la plataforma)* | 19.3587083, -99.1132417 | | ❌ No encontrado | | Google Maps no encontró resultados |
 
 ---
 

@@ -2,11 +2,20 @@
 
 Usa la API de Google Places (`Find Place From Text`) si `GOOGLE_MAPS_API_KEY` está
 configurada en `.env` (más robusto y recomendado); si no, cae a scraping de Google
-Maps con Playwright, leyendo las coordenadas que Google embebe en la URL del
-resultado (patrón `@lat,lon,zoom`).
+Maps con Playwright.
+
+Nota sobre el scraping (verificado en vivo 2026-09-04): buscar con
+`.../search/{negocio}+near+{lat},{lon}` NO funciona — Google interpreta "near" como
+texto literal y, cuando no encuentra nada, redirige a una vista de mapa genérica que
+igual contiene un patrón `@lat,lon,zoom` en la URL (falso positivo de "encontrado").
+El patrón que sí funciona es `.../search/{negocio}/@{lat},{lon},16z`, que centra el
+mapa en las coordenadas y ordena los resultados por relevancia/cercanía; cada
+resultado (`a[href*="/maps/place/"]`) trae sus coordenadas exactas embebidas como
+`!3d{lat}!4d{lon}` en el propio href.
 """
 import re
 import time
+from urllib.parse import quote_plus
 
 import requests
 from loguru import logger
@@ -14,8 +23,28 @@ from loguru import logger
 from config import Config
 from validators import haversine_distance_m
 
-_PLACE_URL_COORD_PATTERN = re.compile(r"@(-?\d+\.\d+),(-?\d+\.\d+)")
+_PLACE_LINK_COORD_PATTERN = re.compile(r"!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)")
 _MIN_METERS_TO_FLAG_CORRECTION = 1.0
+_MAX_CANDIDATES_TO_INSPECT = 5
+
+
+def _normalize(text: str) -> str:
+    """Normaliza un nombre de negocio para compararlo de forma tolerante a mayúsculas y espacios."""
+    return re.sub(r"\s+", "", text.strip().casefold())
+
+
+def _pick_best_candidate(candidates: list[dict], business_name: str) -> tuple[dict, bool]:
+    """Elige, entre los primeros resultados, el que mejor coincide de nombre con `business_name`.
+
+    Devuelve `(candidato, coincidencia_de_nombre)`. Si ninguno coincide de nombre,
+    cae al primero (el más relevante/cercano según Google) y lo marca como tal.
+    """
+    target = _normalize(business_name)
+    for candidate in candidates:
+        name = _normalize(candidate["name"])
+        if target == name or target in name or name in target:
+            return candidate, True
+    return candidates[0], False
 
 
 class GoogleMapsHandler:
@@ -88,31 +117,52 @@ class GoogleMapsHandler:
 
     def _validate_via_browser(self, business_name: str, lat: float, lon: float, radius: int) -> dict:
         page = self._browser.new_page()
-        search_url = f"https://www.google.com/maps/search/{business_name}+near+{lat},{lon}"
+        # Centra el mapa en (lat, lon) y busca el negocio; NO usar "+near+lat,lon" (ver nota
+        # de módulo) porque Google lo trata como texto literal y no filtra por ubicación.
+        zoom = 16
+        search_url = f"https://www.google.com/maps/search/{quote_plus(business_name)}/@{lat},{lon},{zoom}z"
         try:
             page.goto(search_url)
             page.wait_for_timeout(3000)
-            current_url = page.url
-            match = _PLACE_URL_COORD_PATTERN.search(current_url)
 
-            if not match:
-                logger.warning(f"No se pudo confirmar visualmente '{business_name}' en Google Maps.")
+            links = page.locator("a[href*='/maps/place/']")
+            count = min(links.count(), _MAX_CANDIDATES_TO_INSPECT)
+            candidates = []
+            for i in range(count):
+                href = links.nth(i).get_attribute("href") or ""
+                name = (links.nth(i).text_content() or "").strip()
+                coord_match = _PLACE_LINK_COORD_PATTERN.search(href)
+                if name and coord_match:
+                    candidates.append({
+                        "name": name,
+                        "lat": float(coord_match.group(1)),
+                        "lon": float(coord_match.group(2)),
+                        "href": href,
+                    })
+
+            if not candidates:
+                logger.warning(f"Google Maps no encontró resultados para '{business_name}' cerca de ({lat}, {lon}).")
                 return {
                     "found": False,
                     "gps_corregido": None,
                     "distance_m": None,
                     "maps_link": search_url,
-                    "notes": f"No se pudo confirmar visualmente '{business_name}' en Google Maps.",
+                    "notes": f"Google Maps no encontró resultados para '{business_name}' cerca de las coordenadas actuales.",
                 }
 
-            found_lat, found_lon = float(match.group(1)), float(match.group(2))
-            distance_m = round(haversine_distance_m(lat, lon, found_lat, found_lon), 1)
+            best, name_matched = _pick_best_candidate(candidates, business_name)
+            distance_m = round(haversine_distance_m(lat, lon, best["lat"], best["lon"]), 1)
+            notes = (
+                f"Coincide con '{best['name']}' en Google Maps."
+                if name_matched
+                else f"Sin coincidencia exacta de nombre; usando el resultado más cercano: '{best['name']}'."
+            )
             return {
                 "found": True,
-                "gps_corregido": (found_lat, found_lon) if distance_m > _MIN_METERS_TO_FLAG_CORRECTION else None,
+                "gps_corregido": (best["lat"], best["lon"]) if distance_m > _MIN_METERS_TO_FLAG_CORRECTION else None,
                 "distance_m": distance_m,
-                "maps_link": current_url,
-                "notes": "",
+                "maps_link": best["href"],
+                "notes": notes,
             }
         finally:
             page.close()

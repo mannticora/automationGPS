@@ -65,8 +65,8 @@ class Config:
     DELAY_ENTRE_CASOS = _get_float("DELAY_ENTRE_CASOS", 2)
     DELAY_GOOGLE_MAPS = _get_float("DELAY_GOOGLE_MAPS", 1)
 
-    # Filtros del listado
-    FILTRO_ESTADO = os.getenv("FILTRO_ESTADO", "pending")
+    # Filtros del listado (la plataforma muestra el estado en español: "PENDIENTE" / "REVISADA")
+    FILTRO_ESTADO = os.getenv("FILTRO_ESTADO", "pendiente")
     ORDEN_POR = os.getenv("ORDEN_POR", "case_id")
     ORDEN_ASCENDENTE = _get_bool("ORDEN_ASCENDENTE", True)
 

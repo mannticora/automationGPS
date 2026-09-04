@@ -5,7 +5,7 @@
 - **Proyecto:** Validación automática de coordenadas GPS
 - **Cliente:** INMEGA
 - **Plataforma:** https://censobaterias.pricepointmonitor.com/
-- **Estado:** 🟡 MVP — código completo, pendiente de validación en vivo (ver bloqueo de credenciales)
+- **Estado:** 🟢 MVP — verificado en vivo contra la plataforma real y Google Maps
 - **Fase actual:** Fase 1 — Validación y reporte (sin actualización de BD)
 
 ---
@@ -70,11 +70,11 @@ automationGPS/
 ## 🧪 Caso de Prueba Base
 
 **Case ID:** 1777
-**Negocio:** AUTOSERVICIO CALVA
-**Estado:** Pendiente de validación en vivo — el login con las credenciales
-disponibles durante el desarrollo fue rechazado por la plataforma (ver
-[Daily_Progress.md](Daily_Progress.md) del 2026-09-04). La fixture
-`tests/test_data/sample_case_1777.json` usa coordenadas de EJEMPLO, no reales.
+**Negocio:** Autoservicio calva
+**Estado:** ✅ Validado en vivo — GPS actual (19.3200134, -99.0798081) coincide con
+'AUTO SERVICIO CALVA' en Google Maps a ~12.8m. Detalle en
+[Daily_Progress.md](Daily_Progress.md) del 2026-09-04. La fixture
+`tests/test_data/sample_case_1777.json` usa estos datos reales.
 
 ---
 
