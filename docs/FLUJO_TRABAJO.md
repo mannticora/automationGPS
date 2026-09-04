@@ -67,6 +67,7 @@ Todo el pipeline gira alrededor de un `dict` por caso, que se va enriqueciendo:
     "total_photo_fields": 6,
     "calidad_sugerida": "EN_RECUPERACION",        # ver suggest_quality_verdict
     "tipo_encuesta_sugerido": "EN_RECUPERACION",
+    "observaciones_calidad": "No se cargó ninguna de las 6 fotos requeridas (...)",
 }
 ```
 
@@ -83,9 +84,11 @@ Además de la validación GPS, `extract_case_data` también lee la Sección 5
 Sección 13 (qué fotos faltan, de las 6 requeridas: Fachada, Interior, Exhibidor,
 Exhibidor 2, Negocio, Material POP). `validators.suggest_quality_verdict`
 combina esas señales con el resultado de GPS para **sugerir** una Calidad
-(`APROBADA` / `EN_RECUPERACION` / `CANCELADA`) y un Tipo de encuesta a capturar
-en la plataforma — nunca los aplica: son solo una recomendación para que un
-humano decida y los capture manualmente en `revisar.php`. Reglas, en orden:
+(`APROBADA` / `EN_RECUPERACION` / `CANCELADA`), un Tipo de encuesta y un texto
+de `observaciones_calidad` (pensado para pegarse tal cual en el campo
+OBSERVACIONES_CALIDAD de la plataforma) — nunca los aplica: son solo una
+recomendación para que un humano decida y los capture manualmente en
+`revisar.php`. Reglas, en orden:
 
 1. Negocio "Cerrado definitivo" o "No aparece" → `CANCELADA` / `NEGADA`.
 2. Error al extraer o validar el caso → `EN_RECUPERACION` / `INCIDENCIA`.
@@ -123,8 +126,10 @@ humano decida y los capture manualmente en `revisar.php`. Reglas, en orden:
 
 Todo el flujo (login, listado "Cola de revisión", detalle de un caso y búsqueda en
 Google Maps) fue verificado contra la plataforma real y contra Google Maps, usando
-Case ID 1777 (AUTOSERVICIO CALVA) y un lote de 3 casos pendientes reales. Detalles
-de los selectores exactos en los docstrings de `browser_automation.py` y
-`google_maps_handler.py`; dos bugs no obvios encontrados durante esa verificación
-(contexto de navegador no compartido, búsqueda "near" de Google Maps) están
-documentados en [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
+Case ID 1777 (AUTOSERVICIO CALVA) y los Case ID 1778 a 1782 (2 validados, 3 con
+negocio "Cerrado definitivo"). Detalles de los selectores exactos en los
+docstrings de `browser_automation.py` y `google_maps_handler.py`; los bugs no
+obvios encontrados durante esas verificaciones (contexto de navegador no
+compartido, búsqueda "near" de Google Maps, `<p>` duplicado en la Sección 5
+cuando el negocio está cerrado) están documentados en
+[TROUBLESHOOTING.md](TROUBLESHOOTING.md).

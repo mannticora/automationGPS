@@ -5,6 +5,7 @@ Ejemplos de uso:
     python main.py --mode=test --case-id=1777 --headless=false
     python main.py --mode=validate --limit=10
     python main.py --mode=validate --log-level=DEBUG
+    python main.py --case-ids=1778-1782 --output=reporte_1778_1782.xlsx
     python main.py --output=mi_reporte_custom.xlsx
 """
 import argparse
@@ -19,7 +20,7 @@ from config import Config
 from excel_generator import generate_excel_report
 from google_maps_handler import GoogleMapsHandler
 from logger_config import setup_logging
-from utils import ensure_dirs
+from utils import ensure_dirs, parse_case_ids
 from validators import validate_case
 
 
@@ -29,6 +30,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--mode", choices=["validate", "test"], default="validate",
                          help="'validate' procesa los casos pendientes; 'test' procesa un único --case-id.")
     parser.add_argument("--case-id", help="Case ID específico a validar (requerido con --mode=test).")
+    parser.add_argument("--case-ids", help="Lista/rango de Case IDs a validar, ej. '1778-1782' o '1778,1780,1782'. "
+                                            "Tiene prioridad sobre --mode/--case-id.")
     parser.add_argument("--headless", choices=["true", "false"], default=None,
                          help="Sobrescribe HEADLESS_MODE de .env.")
     parser.add_argument("--limit", type=int, default=None, help="Máximo de casos a procesar en modo 'validate'.")
@@ -72,7 +75,18 @@ def main() -> None:
         try:
             client.login()
 
-            if args.mode == "test":
+            if args.case_ids:
+                try:
+                    ids = parse_case_ids(args.case_ids)
+                except ValueError as exc:
+                    logger.error(f"--case-ids inválido: {exc}")
+                    sys.exit(1)
+                for case_id in ids:
+                    try:
+                        cases.append(client.find_case_by_id(case_id))
+                    except CaseNotFoundError as exc:
+                        logger.warning(str(exc))
+            elif args.mode == "test":
                 if not args.case_id:
                     logger.error("--mode=test requiere --case-id.")
                     sys.exit(1)

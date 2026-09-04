@@ -27,6 +27,28 @@ hipotéticos) que vale la pena conocer si vuelves a tocar este código:
 
 ---
 
+## ✅ Resuelto (2026-09-04): `strict mode violation` al extraer Estatus del negocio
+
+Al validar los Case ID 1779, 1781 y 1782 (negocios con "Cerrado definitivo" en
+el listado), `extract_case_data` fallaba con:
+
+```
+Error: strict mode violation: locator("//h2[...]/following-sibling::p")
+resolved to 2 elements
+```
+
+**Causa:** cuando el negocio NO está "Operando", la plataforma agrega un
+`<p class="tag-alerta">⚠ El negocio no está "Operando"...</p>` como un segundo
+`<p>` hermano dentro de la misma sección — el XPath sin índice devolvía ambos
+párrafos y Playwright rechaza `text_content()` sobre un locator con más de un
+elemento.
+
+**Solución:** se agregó `[1]` al XPath (`following-sibling::p[1]`) tanto en
+`_labeled_value` (usado para "Geo Location") como en `_extract_business_status`,
+para tomar siempre solo el primer `<p>` — que es el valor real del campo.
+
+---
+
 ## Error: "Login falló: Correo o contraseña incorrectos"
 
 **Causa:** credenciales inválidas en `.env`, o la contraseña fue rotada.

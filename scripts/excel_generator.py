@@ -22,6 +22,7 @@ HEADERS = [
     "Fotos Faltantes",
     "Calidad Sugerida",
     "Tipo Encuesta Sugerido",
+    "Observaciones",
 ]
 
 _HEADER_FILL = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
@@ -87,6 +88,7 @@ def generate_excel_report(cases: list[dict], output_filename: str | None = None)
             _format_missing_photos(case.get("missing_photos"), case.get("total_photo_fields", 0)),
             case.get("calidad_sugerida", ""),
             case.get("tipo_encuesta_sugerido", ""),
+            case.get("observaciones_calidad", ""),
         ])
 
     for row_idx in range(2, worksheet.max_row + 1):

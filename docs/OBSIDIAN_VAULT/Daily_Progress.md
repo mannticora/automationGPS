@@ -170,3 +170,41 @@ solo en una nota aparte. Se implementó:
 - Suite de tests ampliada a 33 (7 tests nuevos para `suggest_quality_verdict`).
 - Recordatorio: sigue sin escribirse nada en la plataforma; el equipo captura
   el veredicto manualmente si está de acuerdo con la sugerencia.
+
+---
+
+## 2026-09-04 (continuación) — Observaciones + validación de Case ID 1778 a 1782
+
+Se agregó `observaciones_calidad` (texto explicando el porqué del veredicto,
+pensado para pegarse en OBSERVACIONES_CALIDAD) a `suggest_quality_verdict`
+(ahora devuelve una 3-tupla), como nueva columna "Observaciones" en el Excel.
+También se agregó `--case-ids` a `main.py` (acepta rangos y listas, ej.
+`1778-1782` o `1778,1780,1782`, vía la nueva `utils.parse_case_ids`) para poder
+validar un conjunto específico de casos sin depender del listado de pendientes.
+
+**Bug encontrado y corregido:** al validar Case ID 1779, 1781 y 1782 (negocios
+"Cerrado definitivo"), `extract_case_data` fallaba con
+`strict mode violation` — la plataforma agrega un `<p class="tag-alerta">` de
+advertencia adicional en la Sección 5 cuando el negocio no está "Operando", y
+el XPath sin índice capturaba ambos `<p>`. Corregido con `following-sibling::p[1]`
+en `_labeled_value` y `_extract_business_status`. Detalle en
+`docs/TROUBLESHOOTING.md`.
+
+**Resultado de Case ID 1778 a 1782 (verificado en vivo, con el fix aplicado):**
+
+| Case ID | Negocio | Estado GPS | Calidad Sugerida | Tipo Encuesta |
+|---|---|---|---|---|
+| 1778 | Acumuladores Rodriguez | Validado ✓ (14.5m) | EN_RECUPERACION | EN_RECUPERACION |
+| 1779 | *(sin nombre, negocio cerrado)* | ❌ No encontrado | CANCELADA | NEGADA |
+| 1780 | Baterias hersa | Validado ✓ (5m) | EN_RECUPERACION | EN_RECUPERACION |
+| 1781 | *(sin nombre, negocio cerrado)* | ❌ No encontrado | CANCELADA | NEGADA |
+| 1782 | *(sin nombre, negocio cerrado)* | ❌ No encontrado | CANCELADA | NEGADA |
+
+Los 5 casos coinciden con lo que ya se sabía del listado (1779/1781/1782
+figuraban como "Cerrado definitivo" y sin nombre de negocio capturado). 1778 y
+1780 sí están operando, pero igual quedan `EN_RECUPERACION` por no tener
+ninguna de las 6 fotos requeridas.
+
+**Pendiente:** el usuario va a dar retroalimentación sobre las sugerencias de
+Calidad/Tipo de encuesta de estos 5 casos antes de que el equipo las capture en
+la plataforma. Suite ampliada a 41 tests.

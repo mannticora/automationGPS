@@ -134,9 +134,14 @@ class CensoBateriasClient:
         """Lee el texto del `<p>` que sigue inmediatamente a un `<label>` con `label_text`.
 
         La plataforma muestra varios campos de solo lectura como `<label>...</label><p>...</p>`
-        sin id ni clase, así que se ubican por el texto exacto del label.
+        sin id ni clase, así que se ubican por el texto exacto del label. Se toma solo el
+        primer `<p>` siguiente (`[1]`): puede haber más de un `<p>` hermano (p. ej. un
+        `<p class="tag-alerta">` de advertencia adicional), lo que rompería un locator sin
+        índice ("strict mode violation" en Playwright).
         """
-        locator = page.locator(f"xpath=//label[normalize-space(text())='{label_text}']/following-sibling::p")
+        locator = page.locator(
+            f"xpath=//label[normalize-space(text())='{label_text}']/following-sibling::p[1]"
+        )
         return (locator.text_content(timeout=5000) or "").strip()
 
     @staticmethod
@@ -169,9 +174,14 @@ class CensoBateriasClient:
         return status
 
     def _extract_business_status(self, page: Page) -> str:
-        """Lee el texto completo de la Sección 5 (Estatus del negocio / ESTNEG)."""
+        """Lee el texto completo de la Sección 5 (Estatus del negocio / ESTNEG).
+
+        Cuando el negocio no está "Operando", la plataforma agrega un segundo `<p
+        class="tag-alerta">` de advertencia como hermano adicional — se toma solo el
+        primer `<p>` (`[1]`), que es el valor real de ESTNEG.
+        """
         locator = page.locator(
-            "xpath=//h2[starts-with(normalize-space(text()),'5. Estatus')]/following-sibling::p"
+            "xpath=//h2[starts-with(normalize-space(text()),'5. Estatus')]/following-sibling::p[1]"
         )
         return (locator.text_content(timeout=5000) or "").strip()
 

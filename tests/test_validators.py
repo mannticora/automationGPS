@@ -93,56 +93,63 @@ class TestBuildCaseStatus:
 
 class TestSuggestQualityVerdict:
     def test_closed_business_is_cancelada(self):
-        calidad, tipo = suggest_quality_verdict(
+        calidad, tipo, obs = suggest_quality_verdict(
             gps_status="Validado ✓",
             business_status="Cerrado definitivo (Negocio que aparece en el listado/mapa, pero ya cerró)",
             missing_photos=[],
             total_photo_fields=6,
         )
         assert (calidad, tipo) == ("CANCELADA", "NEGADA")
+        assert "Cerrado definitivo" in obs
 
     def test_business_not_present_is_cancelada(self):
-        calidad, _ = suggest_quality_verdict(
+        calidad, _, obs = suggest_quality_verdict(
             gps_status="Validado ✓", business_status="No aparece (Negocio que no está físicamente)",
             missing_photos=[], total_photo_fields=6,
         )
         assert calidad == "CANCELADA"
+        assert obs  # siempre debe traer una explicación no vacía
 
     def test_extraction_error_is_en_recuperacion(self):
-        calidad, tipo = suggest_quality_verdict(
+        calidad, tipo, obs = suggest_quality_verdict(
             gps_status="❌ Error", business_status="", missing_photos=[], total_photo_fields=0,
         )
         assert (calidad, tipo) == ("EN_RECUPERACION", "INCIDENCIA")
+        assert obs
 
     def test_all_photos_missing_is_en_recuperacion(self):
         """Caso real Case ID 1777: las 6 fotos requeridas están vacías."""
-        calidad, tipo = suggest_quality_verdict(
+        missing = ["Fachada", "Interior", "Exhibidor", "Exhibidor 2", "Negocio", "Material POP"]
+        calidad, tipo, obs = suggest_quality_verdict(
             gps_status="Validado ✓", business_status="Operando (...)",
-            missing_photos=["Fachada", "Interior", "Exhibidor", "Exhibidor 2", "Negocio", "Material POP"],
-            total_photo_fields=6,
+            missing_photos=missing, total_photo_fields=6,
         )
         assert (calidad, tipo) == ("EN_RECUPERACION", "EN_RECUPERACION")
+        assert "6" in obs and "Fachada" in obs
 
     def test_some_photos_missing_is_en_recuperacion_incidencia(self):
-        calidad, tipo = suggest_quality_verdict(
+        calidad, tipo, obs = suggest_quality_verdict(
             gps_status="Validado ✓", business_status="Operando (...)",
             missing_photos=["Interior"], total_photo_fields=6,
         )
         assert (calidad, tipo) == ("EN_RECUPERACION", "INCIDENCIA")
+        assert "Interior" in obs
 
     def test_not_found_in_maps_is_en_recuperacion(self):
-        calidad, tipo = suggest_quality_verdict(
+        calidad, tipo, obs = suggest_quality_verdict(
             gps_status="❌ No encontrado", business_status="Operando (...)",
             missing_photos=[], total_photo_fields=6,
         )
         assert (calidad, tipo) == ("EN_RECUPERACION", "INCIDENCIA")
+        assert obs
 
     def test_all_good_is_aprobada(self):
-        calidad, tipo = suggest_quality_verdict(
+        calidad, tipo, obs = suggest_quality_verdict(
             gps_status="Validado ✓", business_status="Operando (...)",
             missing_photos=[], total_photo_fields=6,
         )
         assert (calidad, tipo) == ("APROBADA", "COMPLETA")
+        assert obs
 
 
 class _FakeClient:
@@ -209,6 +216,7 @@ class TestValidateCase:
         # Sin fotos -> aunque el GPS esté validado, se sugiere EN_RECUPERACION (falta evidencia).
         assert result["calidad_sugerida"] == "EN_RECUPERACION"
         assert result["tipo_encuesta_sugerido"] == "EN_RECUPERACION"
+        assert "Fachada" in result["observaciones_calidad"]
 
     def test_requires_correction_keeps_gps_corregido(self):
         client = _FakeClient("NEGOCIO X", "0.0,0.0")

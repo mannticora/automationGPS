@@ -63,12 +63,14 @@ _CLOSED_BUSINESS_MARKERS = ("cerrado definitivo", "no aparece")
 
 
 def suggest_quality_verdict(gps_status: str, business_status: str, missing_photos: list[str],
-                             total_photo_fields: int) -> tuple[str, str]:
-    """Sugiere `(calidad, tipo_encuesta)` para que un humano revise y capture manualmente.
+                             total_photo_fields: int) -> tuple[str, str, str]:
+    """Sugiere `(calidad, tipo_encuesta, observaciones)` para que un humano revise.
 
     Es solo una RECOMENDACIÓN a partir de señales objetivas ya extraídas de la plataforma
     (estatus del negocio, resultado de GPS, fotos faltantes) — nunca se aplica sola en
-    `revisar.php`. Reglas, en orden de prioridad:
+    `revisar.php`; el texto de `observaciones` está pensado para pegarse tal cual en el
+    campo OBSERVACIONES_CALIDAD de la plataforma si el equipo está de acuerdo. Reglas,
+    en orden de prioridad:
 
     1. Negocio cerrado/inexistente (ESTNEG contiene "Cerrado definitivo" o "No aparece")
        -> `CANCELADA` / `NEGADA`.
@@ -80,19 +82,47 @@ def suggest_quality_verdict(gps_status: str, business_status: str, missing_photo
     5. En cualquier otro caso -> `APROBADA` / `COMPLETA`.
     """
     business_status_norm = (business_status or "").strip().casefold()
+    missing_photos = missing_photos or []
+
     if any(marker in business_status_norm for marker in _CLOSED_BUSINESS_MARKERS):
-        return "CANCELADA", "NEGADA"
+        observaciones = (
+            f'Negocio reportado como "{business_status}"; la encuesta no es válida para '
+            "este censo."
+        )
+        return "CANCELADA", "NEGADA", observaciones
 
     if gps_status == "❌ Error":
-        return "EN_RECUPERACION", "INCIDENCIA"
+        observaciones = (
+            "No se pudo completar la validación automática (error al extraer datos de la "
+            "plataforma o al consultar Google Maps); revisar el caso manualmente."
+        )
+        return "EN_RECUPERACION", "INCIDENCIA", observaciones
 
     if total_photo_fields and len(missing_photos) == total_photo_fields:
-        return "EN_RECUPERACION", "EN_RECUPERACION"
+        observaciones = (
+            f"No se cargó ninguna de las {total_photo_fields} fotos requeridas "
+            f"({', '.join(missing_photos)}); sin evidencia visual de las marcas registradas."
+        )
+        return "EN_RECUPERACION", "EN_RECUPERACION", observaciones
 
-    if missing_photos or gps_status == "❌ No encontrado":
-        return "EN_RECUPERACION", "INCIDENCIA"
+    if missing_photos:
+        observaciones = (
+            f"Faltan {len(missing_photos)} de {total_photo_fields} fotos: "
+            f"{', '.join(missing_photos)}."
+        )
+        if gps_status == "❌ No encontrado":
+            observaciones += " Además, el negocio no se encontró en Google Maps."
+        return "EN_RECUPERACION", "INCIDENCIA", observaciones
 
-    return "APROBADA", "COMPLETA"
+    if gps_status == "❌ No encontrado":
+        observaciones = (
+            "El negocio no se encontró en Google Maps cerca de las coordenadas registradas; "
+            "verificar ubicación manualmente."
+        )
+        return "EN_RECUPERACION", "INCIDENCIA", observaciones
+
+    observaciones = "Ubicación validada en Google Maps y fotografías completas; sin observaciones."
+    return "APROBADA", "COMPLETA", observaciones
 
 
 def validate_case(client, maps_handler, case: dict, tolerance_m: float = 50.0) -> dict:
@@ -143,7 +173,7 @@ def validate_case(client, maps_handler, case: dict, tolerance_m: float = 50.0) -
     # google_maps_handler ya la omite si la diferencia es < 1m (prácticamente el mismo punto).
     case["gps_corregido"] = result.get("gps_corregido")
 
-    case["calidad_sugerida"], case["tipo_encuesta_sugerido"] = suggest_quality_verdict(
+    case["calidad_sugerida"], case["tipo_encuesta_sugerido"], case["observaciones_calidad"] = suggest_quality_verdict(
         gps_status=case["status"],
         business_status=case.get("business_status", ""),
         missing_photos=case.get("missing_photos", []),

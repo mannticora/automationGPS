@@ -8,6 +8,31 @@ from loguru import logger
 from config import Config
 
 
+def parse_case_ids(spec: str) -> list[str]:
+    """Convierte una lista/rango de Case IDs en una lista de strings.
+
+    Acepta comas y rangos con guion, combinables: "1778-1782" -> ["1778", ...,
+    "1782"]; "1778,1780,1782" -> esos tres; "1778-1780,1790" -> ["1778","1779",
+    "1780","1790"]. Lanza ValueError si algún fragmento no es un entero ni un
+    rango `inicio-fin` válido.
+    """
+    ids: list[str] = []
+    for part in spec.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        if "-" in part:
+            start_str, _, end_str = part.partition("-")
+            start, end = int(start_str.strip()), int(end_str.strip())
+            if end < start:
+                raise ValueError(f"Rango inválido (fin < inicio): {part!r}")
+            ids.extend(str(i) for i in range(start, end + 1))
+        else:
+            int(part)  # valida que sea numérico; conservamos el string original
+            ids.append(part)
+    return ids
+
+
 def ensure_dirs() -> None:
     """Crea las carpetas de salida (output/, logs/, logs/screenshots) si no existen."""
     for directory in (Config.OUTPUT_DIR, Path(Config.LOG_FILE).parent, "logs/screenshots"):

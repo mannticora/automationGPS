@@ -56,6 +56,9 @@ python scripts/main.py --mode=validate --limit=10
 # Con logging detallado
 python scripts/main.py --mode=validate --log-level=DEBUG
 
+# Validar un rango o lista específica de Case IDs
+python scripts/main.py --case-ids=1778-1782 --output=reporte_1778_1782.xlsx
+
 # Reporte con nombre personalizado
 python scripts/main.py --output=mi_reporte_custom.xlsx
 ```
@@ -145,13 +148,16 @@ Resultados reales de una corrida contra la plataforma (2026-09-04):
 El Excel también incluye columnas de control de calidad, extraídas de las
 Secciones 5, 7 y 13 de la plataforma:
 
-| Case ID | Estatus Negocio | Marcas Registradas | Fotos Faltantes | Calidad Sugerida | Tipo Encuesta Sugerido |
-|---------|-----------------|---------------------|------------------|-------------------|------------------------|
-| 1777 | Operando | FULL POWER, GONHER, GONHER PRIME, LTH | Todas (6/6) | EN_RECUPERACION | EN_RECUPERACION |
+| Case ID | Estatus Negocio | Marcas Registradas | Fotos Faltantes | Calidad Sugerida | Tipo Encuesta Sugerido | Observaciones |
+|---------|-----------------|---------------------|------------------|-------------------|------------------------|---------------|
+| 1777 | Operando | FULL POWER, GONHER, GONHER PRIME, LTH | Todas (6/6) | EN_RECUPERACION | EN_RECUPERACION | No se cargó ninguna de las 6 fotos requeridas; sin evidencia visual de las marcas registradas. |
+| 1779 | Cerrado definitivo | *(ninguna)* | Todas (6/6) | CANCELADA | NEGADA | Negocio reportado como "Cerrado definitivo (...)"; la encuesta no es válida para este censo. |
 
-"Calidad Sugerida" y "Tipo Encuesta Sugerido" son solo una **recomendación**
-(ver [docs/FLUJO_TRABAJO.md](docs/FLUJO_TRABAJO.md#marcas-fotos-y-veredicto-de-calidad-sugerido))
-— el equipo decide y los captura manualmente en la plataforma.
+"Calidad Sugerida", "Tipo Encuesta Sugerido" y "Observaciones" son solo una
+**recomendación** (ver [docs/FLUJO_TRABAJO.md](docs/FLUJO_TRABAJO.md#marcas-fotos-y-veredicto-de-calidad-sugerido))
+— el equipo decide y los captura manualmente en la plataforma. El texto de
+"Observaciones" está pensado para pegarse tal cual en el campo
+OBSERVACIONES_CALIDAD si el equipo está de acuerdo con la sugerencia.
 
 `GPS Corregido` se reporta siempre que Google Maps encuentre el negocio, incluso
 en casos `Validado ✓` — el equipo la usa para actualizar manualmente el campo
