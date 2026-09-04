@@ -50,12 +50,26 @@ def coordinates_match(lat1: float, lon1: float, lat2: float, lon2: float, tolera
     return haversine_distance_m(lat1, lon1, lat2, lon2) <= tolerance_m
 
 
-def build_case_status(found: bool, distance_m: float | None, tolerance_m: float = 50.0) -> str:
-    """Decide el estado textual de un caso a partir del resultado de la búsqueda en Maps."""
+DISTANT_MATCH_STATUS = "❓ Coincidencia lejana (revisar manualmente)"
+_NOT_RELIABLY_FOUND_STATUSES = ("❌ No encontrado", DISTANT_MATCH_STATUS)
+_DEFAULT_MAX_TRUSTED_DISTANCE_M = 2000.0
+
+
+def build_case_status(found: bool, distance_m: float | None, tolerance_m: float = 50.0,
+                       max_trusted_distance_m: float = _DEFAULT_MAX_TRUSTED_DISTANCE_M) -> str:
+    """Decide el estado textual de un caso a partir del resultado de la búsqueda en Maps.
+
+    Si el resultado más cercano por nombre está a más de `max_trusted_distance_m` (por
+    defecto 2km), es mucho más probable que sea un negocio distinto con nombre parecido
+    en otra parte de la ciudad que una corrección real de GPS — se marca aparte
+    (`DISTANT_MATCH_STATUS`) en vez de sugerir esa coordenada como "corrección".
+    """
     if not found:
         return "❌ No encontrado"
     if distance_m is None or distance_m <= tolerance_m:
         return "Validado ✓"
+    if distance_m > max_trusted_distance_m:
+        return DISTANT_MATCH_STATUS
     return "⚠️ Requiere corrección"
 
 
@@ -77,8 +91,8 @@ def suggest_quality_verdict(gps_status: str, business_status: str, missing_photo
     2. Error al extraer o validar el caso -> `EN_RECUPERACION` / `INCIDENCIA`.
     3. Ninguna de las fotos requeridas fue cargada -> `EN_RECUPERACION` / `EN_RECUPERACION`
        (falta toda evidencia visual).
-    4. Faltan algunas fotos, o el negocio no se encontró en Google Maps ->
-       `EN_RECUPERACION` / `INCIDENCIA`.
+    4. Faltan algunas fotos, o el negocio no se encontró de forma confiable en Google Maps
+       (no encontrado, o el resultado más cercano está a más de 2km) -> `EN_RECUPERACION` / `INCIDENCIA`.
     5. En cualquier otro caso -> `APROBADA` / `COMPLETA`.
     """
     business_status_norm = (business_status or "").strip().casefold()
@@ -110,14 +124,15 @@ def suggest_quality_verdict(gps_status: str, business_status: str, missing_photo
             f"Faltan {len(missing_photos)} de {total_photo_fields} fotos: "
             f"{', '.join(missing_photos)}."
         )
-        if gps_status == "❌ No encontrado":
-            observaciones += " Además, el negocio no se encontró en Google Maps."
+        if gps_status in _NOT_RELIABLY_FOUND_STATUSES:
+            observaciones += " Además, el negocio no se encontró de forma confiable en Google Maps."
         return "EN_RECUPERACION", "INCIDENCIA", observaciones
 
-    if gps_status == "❌ No encontrado":
+    if gps_status in _NOT_RELIABLY_FOUND_STATUSES:
         observaciones = (
-            "El negocio no se encontró en Google Maps cerca de las coordenadas registradas; "
-            "verificar ubicación manualmente."
+            "El negocio no se encontró de forma confiable en Google Maps cerca de las "
+            "coordenadas registradas (sin resultado, o el más cercano está a una distancia "
+            "no confiable); verificar ubicación manualmente."
         )
         return "EN_RECUPERACION", "INCIDENCIA", observaciones
 
@@ -139,6 +154,7 @@ def validate_case(client, maps_handler, case: dict, tolerance_m: float = 50.0) -
     try:
         data = client.extract_case_data(case["case_id"], case.get("url"))
         case["business_name"] = data["business_name"]
+        case["business_name_original"] = data.get("business_name_original", "")
         case["gps_actual"] = parse_coordinates(data["geo_location_raw"])
         case["business_status"] = data.get("business_status", "")
         case["brands"] = data.get("brands", [])
@@ -150,9 +166,13 @@ def validate_case(client, maps_handler, case: dict, tolerance_m: float = 50.0) -
         case["notes"] = str(exc)
         return case
 
+    # El nombre editable (nomneg) puede quedar vacío aunque sí exista un nombre original
+    # capturado en campo (NEG_NOMBRE_NEGOCIO precargado) — usarlo como respaldo evita
+    # buscar en Google Maps con un nombre vacío cuando sí hay algo que buscar.
+    search_name = case["business_name"] or case.get("business_name_original", "")
     try:
         result = maps_handler.validate_in_google_maps(
-            business_name=case["business_name"],
+            business_name=search_name,
             lat=case["gps_actual"][0],
             lon=case["gps_actual"][1],
             search_radius_m=case.get("search_radius_m"),

@@ -3,14 +3,25 @@ from datetime import datetime
 from pathlib import Path
 
 from loguru import logger
-from openpyxl import Workbook
+from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 
 from config import Config
 
+STREET_VIEW_COLUMN = "Verificación Street View"
+
+_STREET_VIEW_VERDICT_LABELS = {
+    "coincide": "✓ Coincide",
+    "coincide_parcial": "≈ Coincide parcial",
+    "no_coincide": "✗ No coincide",
+    "sin_street_view": "— Sin cobertura Street View",
+    "indeterminado": "? Indeterminado",
+}
+
 HEADERS = [
     "Case ID",
     "Nombre Negocio",
+    "Nombre Negocio (Original)",
     "GPS Actual (lat, lon)",
     "GPS Corregido (lat, lon)",
     "Estado",
@@ -77,6 +88,7 @@ def generate_excel_report(cases: list[dict], output_filename: str | None = None)
         worksheet.append([
             case.get("case_id", ""),
             case.get("business_name", ""),
+            case.get("business_name_original", ""),
             f"{gps_actual[0]}, {gps_actual[1]}" if gps_actual else "",
             f"{gps_corregido[0]}, {gps_corregido[1]}" if gps_corregido else "",
             case.get("status", ""),
@@ -91,8 +103,9 @@ def generate_excel_report(cases: list[dict], output_filename: str | None = None)
             case.get("observaciones_calidad", ""),
         ])
 
+    status_column = HEADERS.index("Estado") + 1
     for row_idx in range(2, worksheet.max_row + 1):
-        status_value = str(worksheet.cell(row=row_idx, column=5).value or "")
+        status_value = str(worksheet.cell(row=row_idx, column=status_column).value or "")
         fill = _fill_for_status(status_value)
         for cell in worksheet[row_idx]:
             cell.fill = fill
@@ -112,3 +125,44 @@ def generate_excel_report(cases: list[dict], output_filename: str | None = None)
     workbook.save(output_path)
     logger.success(f"Excel guardado: {output_path}")
     return str(output_path)
+
+
+def append_street_view_verdicts(excel_path: str, verdicts: list[dict]) -> None:
+    """Agrega (o actualiza) la columna "Verificación Street View" en un Excel ya generado.
+
+    `verdicts` es la lista de resultados del workflow `verificar-street-view` (uno por
+    caso): `{"case_id": str, "street_view_available": bool, "visible_signage": str,
+    "match_verdict": str, "notes": str}`. Empareja por Case ID (columna "Case ID") y dejar
+    en blanco las filas de casos no incluidos en `verdicts`. No vuelve a correr la
+    verificación por sí sola: es un paso manual/asistido (ver docs/FLUJO_TRABAJO.md).
+    """
+    workbook = load_workbook(excel_path)
+    worksheet = workbook.active
+
+    header_row = [cell.value for cell in worksheet[1]]
+    if HEADERS.index("Case ID") + 1 != 1:
+        raise ValueError("Se esperaba que 'Case ID' fuera la primera columna del Excel.")
+
+    if STREET_VIEW_COLUMN in header_row:
+        sv_column = header_row.index(STREET_VIEW_COLUMN) + 1
+    else:
+        sv_column = worksheet.max_column + 1
+        header_cell = worksheet.cell(row=1, column=sv_column, value=STREET_VIEW_COLUMN)
+        header_cell.fill = _HEADER_FILL
+        header_cell.font = _HEADER_FONT
+        header_cell.alignment = Alignment(horizontal="center", vertical="center")
+
+    verdicts_by_case_id = {str(v["case_id"]): v for v in verdicts}
+    for row_idx in range(2, worksheet.max_row + 1):
+        case_id = str(worksheet.cell(row=row_idx, column=1).value or "")
+        verdict = verdicts_by_case_id.get(case_id)
+        if not verdict:
+            continue
+        label = _STREET_VIEW_VERDICT_LABELS.get(verdict["match_verdict"], verdict["match_verdict"])
+        signage = verdict.get("visible_signage") or ""
+        text = f"{label}" + (f" — rótulo visible: \"{signage}\"" if signage else "") + f". {verdict.get('notes', '')}"
+        worksheet.cell(row=row_idx, column=sv_column, value=text.strip())
+
+    worksheet.column_dimensions[worksheet.cell(row=1, column=sv_column).column_letter].width = 60
+    workbook.save(excel_path)
+    logger.success(f"Columna '{STREET_VIEW_COLUMN}' agregada/actualizada en: {excel_path}")

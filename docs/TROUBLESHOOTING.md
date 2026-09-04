@@ -49,6 +49,73 @@ para tomar siempre solo el primer `<p>` — que es el valor real del campo.
 
 ---
 
+## ✅ Resuelto (2026-09-04): nombre editable vacío impedía buscar en Google Maps
+
+Para Case ID 1779, 1781 y 1782 el campo editable `#nomneg` (Sección 10) estaba
+vacío, así que `validate_case` buscaba en Google Maps con una cadena vacía y
+siempre reportaba "No encontrado" — aunque sí existía un nombre "precargado"
+(capturado en campo originalmente) para esos casos.
+
+**Solución:** se agregó `business_name_original` (lee "NEG_NOMBRE_NEGOCIO
+(precargado)") y `validate_case` ahora usa `business_name or
+business_name_original` como término de búsqueda. Nueva columna "Nombre
+Negocio (Original)" en el Excel para poder comparar ambos.
+
+## ✅ Resuelto (2026-09-04): "correcciones" de GPS a varios kilómetros de distancia
+
+Al usar el nombre original como respaldo (fix anterior), algunos casos
+empezaron a "encontrar" un resultado en Google Maps a **más de 1km o incluso
+15km** de las coordenadas registradas — casi seguro un negocio distinto con
+nombre parecido en otra parte de la ciudad, no un error real de GPS.
+
+**Solución:** `build_case_status` ahora recibe `max_trusted_distance_m`
+(por defecto 2000m). Si la distancia al resultado más cercano supera ese
+límite, el estado es `❓ Coincidencia lejana (revisar manualmente)` en vez de
+`⚠️ Requiere corrección`, y `suggest_quality_verdict` lo trata igual que "no
+encontrado" (no sugiere `APROBADA` con una coincidencia tan lejana).
+
+## ⚠️ Conocido, no corregible desde el código: caracteres acentuados corrompidos ("?")
+
+Algunos campos de texto de la plataforma (nombres de negocio, direcciones,
+giros) contienen literalmente el carácter `?` donde debería haber una vocal
+acentuada o "Ñ" — ej. `"?NGELES BIKERS"` en vez de `"ÁNGELES BIKERS"`,
+`"PE??SCOLA 32"` en vez de `"PEÑÍSCOLA 32"`, `"TALLER MEC?NICO"` en vez de
+`"TALLER MECÁNICO"`. Se confirmó que esto **ya viene así en el HTML que sirve
+la plataforma** (se ve igual en `get_page_text` de una página fresca, no es un
+problema de decodificación en Python/Playwright) — parece un problema de
+codificación en el origen de los datos de la plataforma (posible
+Windows-1252 ↔ UTF-8 mal manejado en algún punto de su backend).
+
+**Impacto:** rompe la búsqueda en Google Maps para esos casos (el `?` literal
+no coincide con nada). No hay una forma confiable de adivinar el carácter
+correcto desde el código — si es importante, hay que corregirlo manualmente
+en la plataforma o reportarlo a quien la mantiene.
+
+---
+
+## 🔍 Verificación visual con Street View (sub-agente) — cuándo usarla y limitaciones
+
+Para casos donde Google Maps no encuentra el negocio, o lo encuentra sin
+coincidencia exacta de nombre, existe un workflow guardado
+(`verificar-street-view`, ver `docs/FLUJO_TRABAJO.md`) que usa un sub-agente
+por caso para leer visualmente el rótulo de la fachada. Cosas a tener en
+cuenta:
+
+- **El visor 3D de Street View no renderiza en este entorno** (falla el
+  contexto WebGPU — pantalla negra). El workflow usa en su lugar imágenes
+  estáticas del panorama (`streetviewpixels-pa.googleapis.com/.../thumbnail`),
+  que sí funcionan.
+- **No toda ubicación tiene cobertura real de Street View.** Cuando no la hay,
+  Google puede redirigir a una fotoesfera interior de un negocio cercano no
+  relacionado, o a un panorama real pero de una calle a más de 1km de
+  distancia — hay que verificar que las coordenadas del panorama resuelto
+  coincidan razonablemente con las del caso antes de confiar en lo que se ve.
+- Si el nombre registrado (editado y original) está vacío, el sub-agente no
+  tiene con qué comparar el rótulo — en ese caso solo puede describir lo que
+  ve, no calificar coincidencia/no coincidencia.
+
+---
+
 ## Error: "Login falló: Correo o contraseña incorrectos"
 
 **Causa:** credenciales inválidas en `.env`, o la contraseña fue rotada.

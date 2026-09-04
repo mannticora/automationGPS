@@ -190,10 +190,14 @@ class CensoBateriasClient:
         """Abre el detalle de un caso y extrae los datos relevantes para el reporte.
 
         Si `url` no se provee, primero busca el caso con `find_case_by_id`. Devuelve:
-        `{"business_name": str, "geo_location_raw": str, "business_status": str,
-        "brands": list[str], "missing_photos": list[str], "total_photo_fields": int}`.
-        El nombre de negocio se lee del input editable `#nomneg` (Sección 10); las
-        coordenadas, del campo de solo lectura "Geo Location" (Sección 1).
+        `{"business_name": str, "business_name_original": str, "geo_location_raw": str,
+        "business_status": str, "brands": list[str], "missing_photos": list[str],
+        "total_photo_fields": int}`. El nombre de negocio "editable" se lee del input
+        `#nomneg` (Sección 10); el nombre "original" (tal como se capturó en campo, sin
+        editar) del campo de solo lectura "NEG_NOMBRE_NEGOCIO (precargado)" — pueden
+        diferir (typos, mayúsculas/minúsculas) y eso puede hacer que la búsqueda en
+        Google Maps falle con uno pero no con el otro. Las coordenadas, del campo de
+        solo lectura "Geo Location" (Sección 1).
         """
         if not url:
             url = self.find_case_by_id(case_id)["url"]
@@ -205,6 +209,7 @@ class CensoBateriasClient:
             detail_page.goto(full_url)
             detail_page.wait_for_load_state("networkidle")
             business_name = detail_page.locator("#nomneg").input_value()
+            business_name_original = self._labeled_value(detail_page, "NEG_NOMBRE_NEGOCIO (precargado)")
             geo_location_raw = self._labeled_value(detail_page, "Geo Location")
             business_status = self._extract_business_status(detail_page)
             brands = self._extract_battery_brands(detail_page)
@@ -212,6 +217,7 @@ class CensoBateriasClient:
             missing_photos = [label for label, has_photo in photo_status.items() if not has_photo]
             return {
                 "business_name": business_name.strip(),
+                "business_name_original": business_name_original,
                 "geo_location_raw": geo_location_raw,
                 "business_status": business_status,
                 "brands": brands,

@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 from validators import (
+    DISTANT_MATCH_STATUS,
     build_case_status,
     coordinates_match,
     haversine_distance_m,
@@ -90,6 +91,17 @@ class TestBuildCaseStatus:
     def test_found_without_distance_counts_as_validated(self):
         assert build_case_status(found=True, distance_m=None) == "Validado ✓"
 
+    def test_distant_match_beyond_max_trusted_distance(self):
+        """Caso real Case ID 1781: el resultado más cercano por nombre estaba a 15.7km —
+        casi seguro un negocio distinto, no una corrección real de GPS."""
+        assert build_case_status(found=True, distance_m=15726.5, tolerance_m=50.0) == DISTANT_MATCH_STATUS
+
+    def test_just_within_max_trusted_distance_is_requires_correction(self):
+        assert build_case_status(found=True, distance_m=1999.0, tolerance_m=50.0) == "⚠️ Requiere corrección"
+
+    def test_just_beyond_max_trusted_distance_is_distant_match(self):
+        assert build_case_status(found=True, distance_m=2001.0, tolerance_m=50.0) == DISTANT_MATCH_STATUS
+
 
 class TestSuggestQualityVerdict:
     def test_closed_business_is_cancelada(self):
@@ -143,6 +155,14 @@ class TestSuggestQualityVerdict:
         assert (calidad, tipo) == ("EN_RECUPERACION", "INCIDENCIA")
         assert obs
 
+    def test_distant_match_is_treated_like_not_found(self):
+        calidad, tipo, obs = suggest_quality_verdict(
+            gps_status=DISTANT_MATCH_STATUS, business_status="Operando (...)",
+            missing_photos=[], total_photo_fields=6,
+        )
+        assert (calidad, tipo) == ("EN_RECUPERACION", "INCIDENCIA")
+        assert obs
+
     def test_all_good_is_aprobada(self):
         calidad, tipo, obs = suggest_quality_verdict(
             gps_status="Validado ✓", business_status="Operando (...)",
@@ -156,9 +176,11 @@ class _FakeClient:
     """Doble de prueba para browser_automation.CensoBateriasClient."""
 
     def __init__(self, business_name: str, geo_location_raw: str, business_status: str = "Operando (...)",
-                 brands: list | None = None, missing_photos: list | None = None, total_photo_fields: int = 6):
+                 brands: list | None = None, missing_photos: list | None = None, total_photo_fields: int = 6,
+                 business_name_original: str = ""):
         self._data = {
             "business_name": business_name,
+            "business_name_original": business_name_original,
             "geo_location_raw": geo_location_raw,
             "business_status": business_status,
             "brands": brands or [],
@@ -182,8 +204,10 @@ class _FakeMapsHandler:
 
     def __init__(self, result: dict):
         self._result = result
+        self.last_business_name = None  # espía: qué nombre se usó realmente para buscar
 
     def validate_in_google_maps(self, business_name, lat, lon, search_radius_m=None):
+        self.last_business_name = business_name
         return self._result
 
 
@@ -217,6 +241,28 @@ class TestValidateCase:
         assert result["calidad_sugerida"] == "EN_RECUPERACION"
         assert result["tipo_encuesta_sugerido"] == "EN_RECUPERACION"
         assert "Fachada" in result["observaciones_calidad"]
+
+    def test_falls_back_to_original_name_when_edited_name_is_empty(self):
+        """Caso real Case ID 1779: #nomneg quedó vacío, pero sí hay un nombre "precargado"
+        (ACUMULADORES OCOTE). La búsqueda en Google Maps debe usar ese nombre en vez de
+        buscar con una cadena vacía.
+        """
+        client = _FakeClient("", "19.3587083,-99.1132417", business_name_original="ACUMULADORES OCOTE")
+        maps_handler = _FakeMapsHandler({
+            "found": False, "gps_corregido": None, "distance_m": None,
+            "maps_link": "https://maps.example/busqueda", "notes": "No encontrado.",
+        })
+        validate_case(client, maps_handler, {"case_id": "1779"})
+        assert maps_handler.last_business_name == "ACUMULADORES OCOTE"
+
+    def test_uses_edited_name_over_original_when_both_present(self):
+        client = _FakeClient("Nombre Corregido", "0.0,0.0", business_name_original="NOMBRE ORIGINAL")
+        maps_handler = _FakeMapsHandler({
+            "found": True, "gps_corregido": None, "distance_m": 0.5,
+            "maps_link": "https://maps.example/x", "notes": "",
+        })
+        validate_case(client, maps_handler, {"case_id": "1"})
+        assert maps_handler.last_business_name == "Nombre Corregido"
 
     def test_requires_correction_keeps_gps_corregido(self):
         client = _FakeClient("NEGOCIO X", "0.0,0.0")

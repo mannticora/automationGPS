@@ -208,3 +208,70 @@ ninguna de las 6 fotos requeridas.
 **Pendiente:** el usuario va a dar retroalimentación sobre las sugerencias de
 Calidad/Tipo de encuesta de estos 5 casos antes de que el equipo las capture en
 la plataforma. Suite ampliada a 41 tests.
+
+---
+
+## 2026-09-04 (continuación) — Nombre original, distancias absurdas, y sub-agente de Street View
+
+El usuario revisó manualmente el Case ID 1780 en Google Maps/Street View: el
+rótulo real dice "Venta de baterías HERSA", mientras la plataforma lo capturó
+como "BATERIAS ERSA" (le falta la H) en el campo original y "Baterias hersa"
+en el campo editado. Pidió (1) mostrar el nombre original en el Excel, y (2)
+crear una skill/sub-agente para revisar visualmente (Street View) los casos
+donde la búsqueda por texto en Google Maps no confirma el negocio.
+
+**Cambios de código:**
+
+1. `extract_case_data` ahora también lee "NEG_NOMBRE_NEGOCIO (precargado)"
+   (el nombre tal como se capturó en campo) como `business_name_original`,
+   nueva columna "Nombre Negocio (Original)" en el Excel.
+2. **Bug real encontrado:** para Case ID 1779/1781/1782 el campo editable
+   (`nomneg`) estaba vacío, pero el original SÍ tenía nombre ("ACUMULADORES
+   OCOTE", "REFACCIONARIA VELÁZQUEZ", "ÁNGELES BIKERS") — `validate_case`
+   buscaba en Google Maps con el nombre editado (vacío) en vez de usar el
+   original como respaldo. Corregido: `search_name = business_name or
+   business_name_original`.
+3. **Otro bug real:** con el fix anterior, 1779 y 1781 empezaron a "encontrar"
+   resultados en Maps a **1.2km y 15.7km** de distancia — casi seguro negocios
+   distintos con nombre parecido en otra parte de la ciudad, no una corrección
+   real de GPS. Se agregó `DISTANT_MATCH_STATUS` ("❓ Coincidencia lejana"):
+   si el resultado más cercano está a más de 2km (`max_trusted_distance_m`),
+   ya no se marca como "Requiere corrección" sino aparte, y
+   `suggest_quality_verdict` lo trata igual que "no encontrado".
+4. **Hallazgo de datos (no corregible desde el código):** varios campos de
+   texto de la plataforma tienen caracteres acentuados corrompidos como "?"
+   (ej. "?NGELES BIKERS" en vez de "ÁNGELES BIKERS", visto también antes en
+   "PE??SCOLA" y "MEC?NICO") — parece ser un problema de codificación en el
+   origen de los datos de la plataforma, no de la extracción. Esto rompe la
+   búsqueda en Maps para esos casos (1782 sigue sin encontrarse). Documentado
+   en TROUBLESHOOTING.md.
+
+**Sub-agente de verificación por Street View (el "skill" pedido):** se creó y
+guardó el workflow `verificar-street-view` — dado un lote de casos
+(case_id, nombre editado, nombre original, lat, lon), lanza un sub-agente por
+caso que usa el navegador para comparar el rótulo real de la fachada contra el
+nombre registrado. Detalle técnico importante: el visor 3D interactivo de
+Street View NO renderiza en este entorno (falla el contexto WebGPU) — se usa
+en su lugar el método de imágenes estáticas
+(`streetviewpixels-pa.googleapis.com/v1/thumbnail?...&panoid=...&yaw=...`),
+obtenido siguiendo `maps.google.com/maps?layer=c&cbll=lat,lon` y extrayendo el
+`panoid` de la URL resultante — confiable y no requiere WebGL.
+
+Resultados de la primera corrida (Case ID 1778, 1779, 1781, 1782):
+
+| Case ID | Street View | Veredicto | Nota |
+|---|---|---|---|
+| 1778 | Disponible | ✓ Coincide | Rótulo "ACUMULADORES RODRIGUEZ" confirmado visualmente |
+| 1779 | No disponible | — | Google confirma "no hay imágenes de Street View" en el punto exacto |
+| 1781 | Resolvió a un panorama ~1.5km lejos | Indeterminado | Sin nombre registrado con qué comparar, y probable falta de cobertura real en el punto exacto |
+| 1782 | No disponible | — | Google confirma "no hay imágenes de Street View" |
+
+La falta de cobertura real de Street View en 1779/1781/1782 es consistente con
+que sean negocios "Cerrado definitivo" en zonas con poca cobertura — refuerza
+(sin poder confirmar al 100%) el veredicto CANCELADA ya sugerido por el
+estatus del negocio. `excel_generator.append_street_view_verdicts()` agrega
+estos hallazgos como columna "Verificación Street View" al Excel existente
+(post-proceso, no parte del pipeline automático sin supervisión).
+
+Suite ampliada a 47 tests (nuevo fallback de nombre, nuevo estado de distancia
+lejana). Reporte final: `output/reporte_1778_1782_final.xlsx`.

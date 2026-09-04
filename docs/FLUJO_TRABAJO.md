@@ -54,7 +54,8 @@ Todo el pipeline gira alrededor de un `dict` por caso, que se va enriqueciendo:
 {
     "case_id": "1777",
     "url": "/cases/1777",                 # asignado al listar/buscar el caso
-    "business_name": "Autoservicio calva",# asignado al extraer datos
+    "business_name": "Autoservicio calva",# campo editable "nomneg" (Sección 10)
+    "business_name_original": "AUTOSERVICIO CALVA", # campo "precargado", tal como se capturó en campo
     "gps_actual": (19.3200134, -99.0798081),
     "gps_corregido": (19.3200715, -99.0797028), # coordenada verificada en Maps; None si no se encontró el negocio o la diferencia es <1m
     "distance_error": 12.8,               # metros, o None
@@ -77,6 +78,16 @@ importar el `status`) — el equipo lo copia manualmente al campo "GPS correcto
 en casos ya `Validado ✓`. Solo queda en `None` cuando no se encontró el negocio en
 Maps, o cuando la diferencia con `gps_actual` es menor a 1 metro (el mismo punto).
 
+La búsqueda en Google Maps usa `business_name` (nombre editado); si ese campo
+quedó vacío pero sí existe un `business_name_original` (nombre "precargado"),
+se usa ese como respaldo — buscar con una cadena vacía nunca encuentra nada.
+
+Si el resultado más cercano por nombre está a más de 2km (`max_trusted_distance_m`
+en `build_case_status`) del `gps_actual`, el estado no es "Requiere corrección"
+sino `❓ Coincidencia lejana (revisar manualmente)` — a esa distancia es mucho
+más probable que sea un negocio distinto con nombre parecido en otra parte de
+la ciudad que un error real de captura de GPS.
+
 ### Marcas, fotos y veredicto de calidad sugerido
 
 Además de la validación GPS, `extract_case_data` también lee la Sección 5
@@ -93,9 +104,41 @@ recomendación para que un humano decida y los capture manualmente en
 1. Negocio "Cerrado definitivo" o "No aparece" → `CANCELADA` / `NEGADA`.
 2. Error al extraer o validar el caso → `EN_RECUPERACION` / `INCIDENCIA`.
 3. Ninguna foto cargada (0/6) → `EN_RECUPERACION` / `EN_RECUPERACION`.
-4. Faltan algunas fotos, o el negocio no se encontró en Maps →
+4. Faltan algunas fotos, o el negocio no se encontró de forma confiable en Maps
+   (no encontrado, o "coincidencia lejana" a más de 2km) →
    `EN_RECUPERACION` / `INCIDENCIA`.
 5. En cualquier otro caso → `APROBADA` / `COMPLETA`.
+
+### Verificación visual con Street View (sub-agente)
+
+Cuando la búsqueda por texto en Google Maps no encuentra el negocio, o lo
+encuentra sin coincidencia exacta de nombre, se puede pedir una segunda
+verificación **visual**: un workflow guardado (`verificar-street-view`) que
+lanza un sub-agente por caso para leer el rótulo real de la fachada y
+compararlo contra el nombre registrado. Esto es un paso manual/asistido (no
+corre solo dentro de `main.py`), pensado para invocarse cuando haya dudas
+sobre un lote de casos.
+
+**Nota técnica importante:** el visor 3D interactivo de Street View (el mapa
+de `google.com/maps` con WebGL) no renderiza en el navegador de este entorno
+(falla la creación de contexto WebGPU). El método que sí funciona:
+
+1. Navegar a `https://www.google.com/maps?layer=c&cbll={lat},{lon}` — Google
+   redirige al panorama más cercano a esas coordenadas.
+2. Si la página muestra "No hay imágenes de Street View disponibles en este
+   lugar", no hay cobertura ahí — parar.
+3. Si no, leer la URL resultante y extraer el parámetro `panoid=...`.
+4. Navegar directamente a imágenes estáticas del panorama (sin WebGL):
+   `https://streetviewpixels-pa.googleapis.com/v1/thumbnail?cb_client=maps_sv.tactile&w=900&h=600&pitch=0&panoid=<PANOID>&yaw={0,90,180,270}`
+   — cada una es una foto JPEG normal; se revisan las 4 para cubrir los 360°.
+5. Comparar cualquier rótulo/letrero legible contra el nombre registrado
+   (editado y original), tolerando diferencias de ortografía/mayúsculas.
+
+Los resultados (`{case_id, street_view_available, visible_signage,
+match_verdict, notes}`) se agregan al Excel existente con
+`excel_generator.append_street_view_verdicts(ruta_excel, resultados)`, como
+columna "Verificación Street View" — no se generan automáticamente, hay que
+correr el workflow y pegar los resultados explícitamente.
 
 ---
 

@@ -139,11 +139,18 @@ vía `scripts/config.py`.
 
 Resultados reales de una corrida contra la plataforma (2026-09-04):
 
-| Case ID | Negocio | GPS Actual | GPS Corregido | Estado | Distancia (m) | Notas |
-|---------|---------|-----------|---------------|--------|--------------|-------|
-| 1777 | Autoservicio calva | 19.3200134, -99.0798081 | 19.3200715, -99.0797028 | Validado ✓ | 12.8 | Coincide con 'AUTO SERVICIO CALVA' en Google Maps |
-| 1778 | Acumuladores Rodriguez | 19.3194452, -99.0795619 | 19.319486, -99.0794311 | Validado ✓ | 14.5 | Sin coincidencia exacta de nombre; resultado más cercano |
-| 1779 | *(sin nombre en la plataforma)* | 19.3587083, -99.1132417 | | ❌ No encontrado | | Google Maps no encontró resultados |
+| Case ID | Negocio | Negocio (Original) | GPS Actual | GPS Corregido | Estado | Distancia (m) |
+|---------|---------|---------------------|-----------|---------------|--------|--------------|
+| 1777 | Autoservicio calva | AUTOSERVICIO CALVA | 19.3200134, -99.0798081 | 19.3200715, -99.0797028 | Validado ✓ | 12.8 |
+| 1779 | *(vacío)* | ACUMULADORES OCOTE | 19.3587083, -99.1132417 | 19.3656414, -99.1220313 | ⚠️ Requiere corrección | 1201.9 |
+| 1781 | *(vacío)* | REFACCIONARIA VEL?ZQUEZ | 19.3192192, -99.0939632 | 19.460437, -99.1022093 | ❓ Coincidencia lejana (revisar manualmente) | 15726.5 |
+
+`Nombre Negocio (Original)` (campo "precargado") puede diferir del `Nombre
+Negocio` editado — a veces uno de los dos está vacío o tiene errores de
+captura; se usa el que esté disponible para buscar en Google Maps. Cuando el
+resultado más cercano está a más de 2km, el estado pasa a "❓ Coincidencia
+lejana" en vez de "Requiere corrección": a esa distancia es más probable que
+sea un negocio distinto con nombre parecido que un error real de GPS.
 
 El Excel también incluye columnas de control de calidad, extraídas de las
 Secciones 5, 7 y 13 de la plataforma:
@@ -163,6 +170,18 @@ OBSERVACIONES_CALIDAD si el equipo está de acuerdo con la sugerencia.
 en casos `Validado ✓` — el equipo la usa para actualizar manualmente el campo
 "GPS correcto (lat, lon)" de la plataforma. La automatización nunca escribe en la
 plataforma por sí sola.
+
+### Segunda opinión visual: verificación con Street View
+
+Cuando Google Maps no encuentra el negocio o lo encuentra sin coincidencia
+exacta de nombre, se puede correr el workflow guardado
+`verificar-street-view` — lanza un sub-agente por caso que revisa
+visualmente el rótulo real de la fachada (usando imágenes estáticas del
+panorama, sin necesitar el visor 3D) y lo compara contra el nombre
+registrado. El resultado se agrega al mismo Excel con
+`excel_generator.append_street_view_verdicts()`, como columna
+"Verificación Street View". Detalle en
+[docs/FLUJO_TRABAJO.md](docs/FLUJO_TRABAJO.md#verificación-visual-con-street-view-sub-agente).
 
 ---
 
