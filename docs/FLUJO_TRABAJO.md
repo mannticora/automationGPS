@@ -54,15 +54,21 @@ Todo el pipeline gira alrededor de un `dict` por caso, que se va enriqueciendo:
 {
     "case_id": "1777",
     "url": "/cases/1777",                 # asignado al listar/buscar el caso
-    "business_name": "AUTOSERVICIO CALVA",# asignado al extraer datos
-    "gps_actual": (-0.2345, -78.5123),
-    "gps_corregido": (-0.2350, -78.5130), # o None si coincide
-    "distance_error": 62.4,               # metros, o None
-    "status": "⚠️ Requiere corrección",
-    "maps_link": "https://www.google.com/maps/...",
-    "notes": "",
+    "business_name": "Autoservicio calva",# asignado al extraer datos
+    "gps_actual": (19.3200134, -99.0798081),
+    "gps_corregido": (19.3200715, -99.0797028), # coordenada verificada en Maps; None si no se encontró el negocio o la diferencia es <1m
+    "distance_error": 12.8,               # metros, o None
+    "status": "Validado ✓",
+    "maps_link": "https://www.google.com/maps/place/...",
+    "notes": "Coincide con 'AUTO SERVICIO CALVA' en Google Maps.",
 }
 ```
+
+`gps_corregido` se reporta **siempre** que Google Maps encuentre el negocio (sin
+importar el `status`) — el equipo lo copia manualmente al campo "GPS correcto
+(lat, lon)" de la plataforma como parte de su propio control de calidad, incluso
+en casos ya `Validado ✓`. Solo queda en `None` cuando no se encontró el negocio en
+Maps, o cuando la diferencia con `gps_actual` es menor a 1 metro (el mismo punto).
 
 ---
 

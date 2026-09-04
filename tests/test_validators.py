@@ -118,8 +118,14 @@ class _FakeMapsHandler:
 
 
 class TestValidateCase:
-    def test_validated_case_clears_gps_corregido(self):
-        """Caso real Case ID 1777 (AUTOSERVICIO CALVA): ~12.8m de distancia, dentro de tolerancia."""
+    def test_validated_case_still_reports_verified_gps(self):
+        """Caso real Case ID 1777 (AUTOSERVICIO CALVA): ~12.8m de distancia, dentro de tolerancia.
+
+        Aunque el caso quede "Validado ✓", la coordenada verificada en Google Maps se
+        reporta igual: el equipo la copia manualmente al campo "GPS correcto" de la
+        plataforma como parte de su control de calidad, sin importar si ya estaba
+        dentro de tolerancia.
+        """
         client = _FakeClient("AUTOSERVICIO CALVA", "19.3200134,-99.0798081")
         maps_handler = _FakeMapsHandler({
             "found": True,
@@ -130,7 +136,7 @@ class TestValidateCase:
         })
         result = validate_case(client, maps_handler, {"case_id": "1777"})
         assert result["status"] == "Validado ✓"
-        assert result["gps_corregido"] is None
+        assert result["gps_corregido"] == (19.3200715, -99.0797028)
         assert result["distance_error"] == 12.8
 
     def test_requires_correction_keeps_gps_corregido(self):

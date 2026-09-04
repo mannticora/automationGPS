@@ -138,9 +138,14 @@ Resultados reales de una corrida contra la plataforma (2026-09-04):
 
 | Case ID | Negocio | GPS Actual | GPS Corregido | Estado | Distancia (m) | Notas |
 |---------|---------|-----------|---------------|--------|--------------|-------|
-| 1777 | Autoservicio calva | 19.3200134, -99.0798081 | | Validado ✓ | 12.8 | Coincide con 'AUTO SERVICIO CALVA' en Google Maps |
-| 1778 | Acumuladores Rodriguez | 19.3194452, -99.0795619 | | Validado ✓ | 14.5 | Sin coincidencia exacta de nombre; resultado más cercano |
+| 1777 | Autoservicio calva | 19.3200134, -99.0798081 | 19.3200715, -99.0797028 | Validado ✓ | 12.8 | Coincide con 'AUTO SERVICIO CALVA' en Google Maps |
+| 1778 | Acumuladores Rodriguez | 19.3194452, -99.0795619 | 19.319486, -99.0794311 | Validado ✓ | 14.5 | Sin coincidencia exacta de nombre; resultado más cercano |
 | 1779 | *(sin nombre en la plataforma)* | 19.3587083, -99.1132417 | | ❌ No encontrado | | Google Maps no encontró resultados |
+
+`GPS Corregido` se reporta siempre que Google Maps encuentre el negocio, incluso
+en casos `Validado ✓` — el equipo la usa para actualizar manualmente el campo
+"GPS correcto (lat, lon)" de la plataforma. La automatización nunca escribe en la
+plataforma por sí sola.
 
 ---
 

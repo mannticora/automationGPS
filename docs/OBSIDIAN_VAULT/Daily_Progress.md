@@ -96,3 +96,31 @@
    donde el resultado más cercano no coincidió de nombre exacto.
 3. Fase 2: actualización automática del campo "GPS correcto" (`#gps_correcto`) en
    la plataforma para los casos que requieran corrección.
+
+---
+
+## 2026-09-04 (continuación) — Corrección de criterio: "GPS Corregido" siempre visible
+
+**Contexto:** el usuario replicó el proceso a mano en Case ID 1777 — entró a
+Google Maps con la coordenada de "Geo Location", vio que el pin no caía sobre el
+negocio, encontró "AUTOSERVICIO CALVA" cerca, y copió las coordenadas del pin del
+negocio para pegarlas en el campo "GPS correcto (lat, lon)" de la plataforma
+(manualmente, sin automatizar esa escritura).
+
+Esto reveló que el criterio que se había fijado más temprano hoy ("no mostrar
+GPS Corregido si el caso ya está Validado ✓ dentro de tolerancia") no encaja con
+el flujo real de trabajo: el equipo quiere ver **siempre** la coordenada que
+Google Maps confirma para el negocio — la misma que copiarían a mano — sin
+importar si la diferencia es pequeña. Se revirtió ese criterio:
+`validators.validate_case` ahora reporta `gps_corregido` en cuanto
+`google_maps_handler` encuentra el negocio, independientemente del `status`
+(solo se omite si no se encontró el negocio, o si la diferencia es <1m).
+
+También se acordó con el usuario que las notas de este proyecto en
+`docs/OBSIDIAN_VAULT/` se sincronizan automáticamente (sin que lo pida cada vez)
+a su vault real de Obsidian, en
+`...\OneDrive - Inmega Investigacion De Mercados S.C\07_2026\Documentos\Obsidian Vault\Proyecto GPS Baterias\`.
+
+**Recordatorio:** la automatización sigue sin escribir nada en la plataforma —
+solo lee y reporta. La actualización del campo "GPS correcto" en
+`revisar.php?id=...` la hace el equipo manualmente con el dato del Excel.

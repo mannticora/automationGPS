@@ -97,9 +97,11 @@ def validate_case(client, maps_handler, case: dict, tolerance_m: float = 50.0) -
     case["maps_link"] = result.get("maps_link")
     case["status"] = build_case_status(result.get("found", False), result.get("distance_m"), tolerance_m)
     case["notes"] = result.get("notes", "")
-    # Solo mostramos "GPS corregido" cuando el caso realmente requiere corrección:
-    # si ya está Validado ✓ (dentro de tolerancia), no tiene sentido sugerir un cambio.
-    case["gps_corregido"] = result.get("gps_corregido") if case["status"] != "Validado ✓" else None
+    # Siempre reportamos la coordenada verificada en Google Maps cuando exista (incluso en
+    # casos "Validado ✓" dentro de tolerancia): el equipo la copia manualmente al campo
+    # "GPS correcto (lat, lon)" de la plataforma como parte de su propio control de calidad.
+    # google_maps_handler ya la omite si la diferencia es < 1m (prácticamente el mismo punto).
+    case["gps_corregido"] = result.get("gps_corregido")
 
     logger.info(f"Case ID {case.get('case_id')} -> {case['status']}")
     return case
