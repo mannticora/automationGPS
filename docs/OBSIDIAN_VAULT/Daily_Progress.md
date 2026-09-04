@@ -124,3 +124,22 @@ a su vault real de Obsidian, en
 **Recordatorio:** la automatización sigue sin escribir nada en la plataforma —
 solo lee y reporta. La actualización del campo "GPS correcto" en
 `revisar.php?id=...` la hace el equipo manualmente con el dato del Excel.
+
+---
+
+## 2026-09-04 (continuación) — Revisión manual de calidad, Case ID 1777
+
+Revisión manual (no automatizada) de las secciones 7 (Marcas de baterías) y 13
+(Fotos) del Case ID 1777, a pedido del usuario. Detalle completo en
+[[Revision_Case_1777]]. Resumen:
+
+- 4 marcas registradas (FULL POWER, GONHER, GONHER PRIME, LTH), sin
+  inconsistencias entre lo capturado y "Marca correcta".
+- **Sin ninguna fotografía cargada** en las 6 secciones de fotos (Fachada,
+  Interior, Exhibidor, Exhibidor 2, Negocio, Material POP) — no hay evidencia
+  visual que respalde las marcas capturadas.
+- Folio "CL - 960509" duplicado con Case ID 1125 — señal a revisar.
+- Recomendación de veredicto: **Calidad = EN_RECUPERACION**, **Tipo de encuesta
+  = EN_RECUPERACION** (por falta total de fotos), pendiente de que el equipo lo
+  confirme y lo capture manualmente en la plataforma — no se modificó nada en
+  `revisar.php?id=70112`.
