@@ -1,0 +1,6 @@
+{
+  "case_id": "1777",
+  "business_name": "AUTOSERVICIO CALVA",
+  "geo_location_raw": "-0.2345,-78.5123",
+  "_nota": "Datos de EJEMPLO para pruebas unitarias, no son coordenadas reales verificadas contra la plataforma. Extraer los datos reales con: python scripts/main.py --mode=test --case-id=1777 --headless=false"
+}

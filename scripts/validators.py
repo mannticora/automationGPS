@@ -1,0 +1,103 @@
+"""Lógica de validación de coordenadas GPS y orquestación de la validación por caso.
+
+Las funciones de parseo/geometría son puras (sin efectos secundarios) para que sean
+fáciles de probar sin necesidad de un navegador real — ver tests/test_validators.py.
+"""
+import math
+import re
+
+from loguru import logger
+
+_COORD_PATTERN = re.compile(r"^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$")
+
+
+def is_within_valid_range(lat: float, lon: float) -> bool:
+    """Indica si (lat, lon) están dentro de rangos geográficos válidos."""
+    return -90.0 <= lat <= 90.0 and -180.0 <= lon <= 180.0
+
+
+def parse_coordinates(raw: str) -> tuple[float, float]:
+    """Convierte un string "lat,lon" (con o sin espacios) en una tupla (lat, lon).
+
+    Lanza ValueError si el formato no es reconocible o si las coordenadas quedan
+    fuera de rango válido.
+    """
+    if not raw or not isinstance(raw, str):
+        raise ValueError(f"Coordenadas vacías o inválidas: {raw!r}")
+
+    match = _COORD_PATTERN.match(raw)
+    if not match:
+        raise ValueError(f"Formato de coordenadas no reconocido: {raw!r}")
+
+    lat, lon = float(match.group(1)), float(match.group(2))
+    if not is_within_valid_range(lat, lon):
+        raise ValueError(f"Coordenadas fuera de rango válido: ({lat}, {lon})")
+    return lat, lon
+
+
+def haversine_distance_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Calcula la distancia en metros entre dos puntos GPS usando la fórmula de Haversine."""
+    earth_radius_m = 6371000.0
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    d_phi = math.radians(lat2 - lat1)
+    d_lambda = math.radians(lon2 - lon1)
+    a = math.sin(d_phi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(d_lambda / 2) ** 2
+    return 2 * earth_radius_m * math.asin(math.sqrt(a))
+
+
+def coordinates_match(lat1: float, lon1: float, lat2: float, lon2: float, tolerance_m: float = 50.0) -> bool:
+    """Indica si dos coordenadas son "la misma ubicación" dentro de una tolerancia en metros."""
+    return haversine_distance_m(lat1, lon1, lat2, lon2) <= tolerance_m
+
+
+def build_case_status(found: bool, distance_m: float | None, tolerance_m: float = 50.0) -> str:
+    """Decide el estado textual de un caso a partir del resultado de la búsqueda en Maps."""
+    if not found:
+        return "❌ No encontrado"
+    if distance_m is None or distance_m <= tolerance_m:
+        return "Validado ✓"
+    return "⚠️ Requiere corrección"
+
+
+def validate_case(client, maps_handler, case: dict, tolerance_m: float = 50.0) -> dict:
+    """Orquesta la validación completa de un caso: extrae datos de la plataforma y
+    los contrasta contra Google Maps. Modifica y devuelve `case` con los resultados.
+
+    `client` es un `browser_automation.CensoBateriasClient` y `maps_handler` un
+    `google_maps_handler.GoogleMapsHandler`. Cualquier error se captura y se refleja
+    en case['status'] / case['notes'] en lugar de propagarse, para no interrumpir el
+    procesamiento del resto de casos.
+    """
+    logger.info(f"Validando Case ID {case.get('case_id')}...")
+
+    try:
+        data = client.extract_case_data(case["case_id"], case.get("url"))
+        case["business_name"] = data["business_name"]
+        case["gps_actual"] = parse_coordinates(data["geo_location_raw"])
+    except Exception as exc:  # noqa: BLE001 - se registra y se continúa con el siguiente caso
+        logger.error(f"Error extrayendo datos del Case ID {case.get('case_id')}: {exc}")
+        case["status"] = "❌ Error"
+        case["notes"] = str(exc)
+        return case
+
+    try:
+        result = maps_handler.validate_in_google_maps(
+            business_name=case["business_name"],
+            lat=case["gps_actual"][0],
+            lon=case["gps_actual"][1],
+            search_radius_m=case.get("search_radius_m"),
+        )
+    except Exception as exc:  # noqa: BLE001 - idem
+        logger.error(f"Error validando en Google Maps el Case ID {case.get('case_id')}: {exc}")
+        case["status"] = "❌ Error"
+        case["notes"] = str(exc)
+        return case
+
+    case["gps_corregido"] = result.get("gps_corregido")
+    case["distance_error"] = result.get("distance_m")
+    case["maps_link"] = result.get("maps_link")
+    case["status"] = build_case_status(result.get("found", False), result.get("distance_m"), tolerance_m)
+    case["notes"] = result.get("notes", "")
+
+    logger.info(f"Case ID {case.get('case_id')} -> {case['status']}")
+    return case
